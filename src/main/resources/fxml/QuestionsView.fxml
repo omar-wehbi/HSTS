@@ -1,26 +1,25 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
 <?import javafx.scene.control.Button?>
+<?import javafx.scene.control.ComboBox?>
 <?import javafx.scene.control.Label?>
 <?import javafx.scene.control.ListView?>
+<?import javafx.scene.control.ScrollPane?>
 <?import javafx.scene.control.TextArea?>
+<?import javafx.scene.control.TextField?>
 <?import javafx.scene.layout.HBox?>
 <?import javafx.scene.layout.Region?>
 <?import javafx.scene.layout.StackPane?>
 <?import javafx.scene.layout.VBox?>
 <?import javafx.scene.shape.Circle?>
-<!-- StackPane (logo slot) imported above; controller fills it with client.ui.Logo -->
-
 
 <!--
-  QuestionsView — main screen (Presentation tier), master-detail layout.
-
-  No fx:controller: the controller is set via loader.setController(this) in
-  QuestionsView.render(), so the AbstractScreenUI-managed instance (Template
-  Method) stays the controller and the Singleton/Adapter wiring is untouched.
-  Header (status + count) · left question list · right editor card · status bar.
+  QuestionsView — Question Bank manager (Presentation tier), master-detail layout.
+  Controller set via loader.setController(this) in QuestionsView.render().
+  Left: the current bank.  Right: full editor (course, 4 answers, correct answer,
+  topic, difficulty) with New / Save / Delete.
 -->
-<VBox prefHeight="640.0" prefWidth="980.0"
+<VBox prefHeight="640.0" prefWidth="1000.0"
       xmlns="http://javafx.com/javafx" xmlns:fx="http://javafx.com/fxml">
 
     <!-- ===== Header bar ===== -->
@@ -28,7 +27,7 @@
         <StackPane fx:id="logoBox"/>
         <VBox spacing="2.0">
             <Label styleClass="header-title" text="HSTS · Question Bank"/>
-            <Label styleClass="header-subtitle" text="High School Test System — prototype"/>
+            <Label styleClass="header-subtitle" text="High School Test System — manage questions"/>
         </VBox>
         <Region HBox.hgrow="ALWAYS"/>
         <HBox styleClass="status-pill">
@@ -42,42 +41,58 @@
     <HBox styleClass="body" VBox.vgrow="ALWAYS">
 
         <!-- Left: question list -->
-        <VBox prefWidth="320.0" spacing="12.0" styleClass="card">
-            <Label styleClass="section-title" text="Questions"/>
+        <VBox prefWidth="340.0" spacing="12.0" styleClass="card">
+            <Label styleClass="section-title" text="Question bank"/>
             <ListView fx:id="listView" styleClass="questions-list" VBox.vgrow="ALWAYS"/>
         </VBox>
 
         <!-- Right: editor -->
-        <VBox spacing="14.0" styleClass="card" HBox.hgrow="ALWAYS">
+        <VBox spacing="12.0" styleClass="card" HBox.hgrow="ALWAYS">
             <HBox alignment="CENTER_LEFT" spacing="10.0">
-                <Label styleClass="section-title" text="Edit Question"/>
+                <Label fx:id="editorTitle" styleClass="section-title" text="New question"/>
                 <Label fx:id="idBadge" managed="false" styleClass="id-badge" visible="false"/>
             </HBox>
 
-            <StackPane VBox.vgrow="ALWAYS">
-                <!-- Empty state -->
-                <VBox fx:id="placeholderBox" styleClass="placeholder-box">
-                    <Label styleClass="placeholder-icon" text="✎"/>
-                    <Label styleClass="placeholder-text" text="Select a question from the list to edit it"/>
-                </VBox>
+            <ScrollPane fitToWidth="true" styleClass="editor-scroll" VBox.vgrow="ALWAYS">
+                <VBox spacing="8.0">
+                    <Label styleClass="field-label" text="COURSE"/>
+                    <ComboBox fx:id="courseBox" maxWidth="Infinity" promptText="Choose a course"/>
 
-                <!-- Editor form -->
-                <VBox fx:id="editorBox" managed="false" spacing="10.0" visible="false">
                     <Label styleClass="field-label" text="QUESTION"/>
-                    <TextArea fx:id="questionField" prefRowCount="3" promptText="Question text" wrapText="true"/>
-                    <Label styleClass="field-label" text="ANSWER"/>
-                    <TextArea fx:id="answerArea" promptText="Answer" wrapText="true" VBox.vgrow="ALWAYS"/>
-                    <HBox alignment="CENTER_RIGHT" spacing="10.0">
-                        <Label fx:id="dirtyLabel" managed="false" styleClass="dirty-indicator"
-                               text="● Unsaved changes" visible="false"/>
-                        <Region HBox.hgrow="ALWAYS"/>
-                        <Button fx:id="revertButton" disable="true" onAction="#onRevert"
-                                styleClass="secondary-button" text="Revert"/>
-                        <Button fx:id="saveButton" disable="true" onAction="#onSave"
-                                styleClass="primary-button" text="Save Update"/>
+                    <TextArea fx:id="questionField" prefRowCount="2" promptText="Question text" wrapText="true"/>
+
+                    <Label styleClass="field-label" text="ANSWERS"/>
+                    <TextField fx:id="a1" promptText="Answer 1"/>
+                    <TextField fx:id="a2" promptText="Answer 2"/>
+                    <TextField fx:id="a3" promptText="Answer 3"/>
+                    <TextField fx:id="a4" promptText="Answer 4"/>
+
+                    <HBox spacing="14.0">
+                        <VBox spacing="6.0">
+                            <Label styleClass="field-label" text="CORRECT (1-4)"/>
+                            <ComboBox fx:id="correctBox" prefWidth="110.0" promptText="#"/>
+                        </VBox>
+                        <VBox spacing="6.0">
+                            <Label styleClass="field-label" text="DIFFICULTY"/>
+                            <ComboBox fx:id="difficultyBox" prefWidth="140.0" promptText="level"/>
+                        </VBox>
+                        <VBox spacing="6.0" HBox.hgrow="ALWAYS">
+                            <Label styleClass="field-label" text="TOPIC"/>
+                            <TextField fx:id="topicField" promptText="e.g. Sorting"/>
+                        </VBox>
                     </HBox>
                 </VBox>
-            </StackPane>
+            </ScrollPane>
+
+            <HBox alignment="CENTER_RIGHT" spacing="10.0">
+                <Label fx:id="hintLabel" styleClass="dirty-indicator"
+                       text="Editing creates a new version (old one is kept)" managed="false" visible="false"/>
+                <Region HBox.hgrow="ALWAYS"/>
+                <Button fx:id="newButton" onAction="#onNew" styleClass="secondary-button" text="New"/>
+                <Button fx:id="deleteButton" disable="true" onAction="#onDelete"
+                        styleClass="secondary-button" text="Delete"/>
+                <Button fx:id="saveButton" onAction="#onSave" styleClass="primary-button" text="Add"/>
+            </HBox>
         </VBox>
     </HBox>
 

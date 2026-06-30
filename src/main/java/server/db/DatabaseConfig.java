@@ -17,7 +17,7 @@ public final class DatabaseConfig {
 
     public static final String HOST     = "localhost";
     public static final int    PORT     = 3306;
-    public static final String DATABASE = "hsts_db";
+    public static final String DATABASE = "hsts_a3_db";
 
     /** Extra JDBC params: TLS off for local dev, sane timezone handling. */
     private static final String PARAMS =

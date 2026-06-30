@@ -99,7 +99,7 @@
                             <goal>shade</goal>
                         </goals>
                         <configuration>
-                            <finalName>hsts-server</finalName>
+                            <finalName>G12_Server</finalName>
                             <shadedArtifactAttached>false</shadedArtifactAttached>
                             <createDependencyReducedPom>false</createDependencyReducedPom>
                             <transformers>
@@ -137,7 +137,7 @@
                             <goal>shade</goal>
                         </goals>
                         <configuration>
-                            <finalName>hsts-client</finalName>
+                            <finalName>G12_Client</finalName>
                             <shadedArtifactAttached>false</shadedArtifactAttached>
                             <createDependencyReducedPom>false</createDependencyReducedPom>
                             <transformers>

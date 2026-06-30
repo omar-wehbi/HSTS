@@ -5,22 +5,24 @@ import common.network.Message;
 import common.network.Message.Command;
 import ocsf.server.AbstractServer;
 import ocsf.server.ConnectionToClient;
+import server.db.CourseDAO;
 import server.db.QuestionDAO;
 
+import java.io.Serializable;
 import java.util.List;
 
 /**
- * The HSTS Fat Server (Logic tier).
+ * The HSTS Fat Server (Logic tier) — the secure gatekeeper.
  *
- * <p>Extends the native OCSF {@link AbstractServer}. This is the single choke
- * point for all data access — the documented "secure gatekeeper": clients never
- * touch the database directly, they send {@link Message} requests which this
- * server validates, routes to {@link QuestionDAO}, and answers with a response
- * {@link Message}.
+ * <p>Extends the OCSF {@link AbstractServer}. Every client request is a
+ * {@link Message}; this server validates it, routes it to the right DAO, and
+ * replies with a {@link Message} (SUCCESS or ERROR). Clients never touch the
+ * database directly.
  */
 public class HSTSServer extends AbstractServer {
 
     private final QuestionDAO questionDAO = new QuestionDAO();
+    private final CourseDAO   courseDAO   = new CourseDAO();
 
     public HSTSServer(int port) {
         super(port);
@@ -28,11 +30,9 @@ public class HSTSServer extends AbstractServer {
 
     @Override
     protected void handleMessageFromClient(Object msg, ConnectionToClient client) {
-        log("Message received from " + client + ": " + msg);
+        log("received from " + client + ": " + msg);
 
         if (!(msg instanceof Message)) {
-            log("  -> rejected: unrecognized message type "
-                    + (msg == null ? "null" : msg.getClass().getName()));
             safeSend(client, new Message(Command.ERROR, "Unrecognized message type."));
             return;
         }
@@ -40,96 +40,94 @@ public class HSTSServer extends AbstractServer {
         Message request = (Message) msg;
         try {
             switch (request.getCommand()) {
-                case GET_ALL_QUESTIONS:
-                    handleGetAll(client);
+                case GET_COURSES:
+                    safeSend(client, new Message(Command.SUCCESS, (Serializable) courseDAO.getAll()));
+                    break;
+                case GET_QUESTIONS:
+                    sendBank(client);
+                    break;
+                case GET_QUESTIONS_BY_COURSE:
+                    safeSend(client, new Message(Command.SUCCESS,
+                            (Serializable) questionDAO.getByCourse((Integer) request.getPayload())));
+                    break;
+                case GET_QUESTION_HISTORY:
+                    safeSend(client, new Message(Command.SUCCESS,
+                            (Serializable) questionDAO.getHistory((Integer) request.getPayload())));
+                    break;
+                case ADD_QUESTION:
+                    handleAdd(request, client);
                     break;
                 case UPDATE_QUESTION:
                     handleUpdate(request, client);
                     break;
+                case DELETE_QUESTION:
+                    handleDelete(request, client);
+                    break;
                 default:
-                    log("  -> unsupported command: " + request.getCommand());
                     safeSend(client, new Message(Command.ERROR,
                             "Unsupported command: " + request.getCommand()));
             }
         } catch (Exception e) {
-            log("  -> handler threw: " + e.getMessage());
-            safeSend(client, new Message(Command.ERROR,
-                    "Server error: " + e.getMessage()));
+            log("handler threw: " + e.getMessage());
+            safeSend(client, new Message(Command.ERROR, "Server error: " + e.getMessage()));
         }
     }
 
-    /** Returns the full question list as the payload of a SUCCESS response. */
-    private void handleGetAll(ConnectionToClient client) {
-        List<Question> all = questionDAO.getAll();
-        log("  -> GET_ALL_QUESTIONS: returning " + all.size() + " questions");
-        safeSend(client, new Message(Command.SUCCESS, (java.io.Serializable) all));
-    }
+    // ===== handlers =======================================================
 
-    /**
-     * Persists an updated question. On success, replies with the refreshed full
-     * list so the client can re-render directly from the server's source of truth.
-     */
-    private void handleUpdate(Message request, ConnectionToClient client) {
-        Object payload = request.getPayload();
-        if (!(payload instanceof Question)) {
-            log("  -> UPDATE_QUESTION: bad payload");
-            safeSend(client, new Message(Command.ERROR,
-                    "UPDATE_QUESTION requires a Question payload."));
+    private void handleAdd(Message request, ConnectionToClient client) {
+        if (!(request.getPayload() instanceof Question)) {
+            safeSend(client, new Message(Command.ERROR, "ADD_QUESTION requires a Question payload."));
             return;
         }
+        Question saved = questionDAO.add((Question) request.getPayload());
+        if (saved != null) sendBank(client);
+        else safeSend(client, new Message(Command.ERROR, "Add failed."));
+    }
 
-        Question q = (Question) payload;
-        boolean ok = questionDAO.update(q);
-        log("  -> UPDATE_QUESTION id=" + q.getId() + ": " + (ok ? "updated" : "no-op/failed"));
-
-        if (ok) {
-            // Reply with the fresh list so the client re-displays persisted state.
-            List<Question> all = questionDAO.getAll();
-            safeSend(client, new Message(Command.SUCCESS, (java.io.Serializable) all));
-        } else {
-            safeSend(client, new Message(Command.ERROR,
-                    "Update failed for question id=" + q.getId()));
+    private void handleUpdate(Message request, ConnectionToClient client) {
+        if (!(request.getPayload() instanceof Question)) {
+            safeSend(client, new Message(Command.ERROR, "UPDATE_QUESTION requires a Question payload."));
+            return;
         }
+        Question updated = questionDAO.update((Question) request.getPayload());
+        if (updated != null) sendBank(client);
+        else safeSend(client, new Message(Command.ERROR, "Update failed."));
     }
 
-    // ===== OCSF lifecycle hooks (console logging) =========================
-
-    @Override
-    protected void serverStarted() {
-        log("Server started, listening on port " + getPort());
+    private void handleDelete(Message request, ConnectionToClient client) {
+        if (!(request.getPayload() instanceof Integer)) {
+            safeSend(client, new Message(Command.ERROR, "DELETE_QUESTION requires a baseId (Integer)."));
+            return;
+        }
+        boolean ok = questionDAO.delete((Integer) request.getPayload());
+        if (ok) sendBank(client);
+        else safeSend(client, new Message(Command.ERROR, "Delete failed."));
     }
 
-    @Override
-    protected void serverStopped() {
-        log("Server has stopped listening for connections.");
+    /** Replies with the refreshed current question bank. */
+    private void sendBank(ConnectionToClient client) {
+        List<Question> bank = questionDAO.getAllCurrent();
+        log("returning bank: " + bank.size() + " questions");
+        safeSend(client, new Message(Command.SUCCESS, (Serializable) bank));
     }
 
-    @Override
-    protected void clientConnected(ConnectionToClient client) {
-        log("Client connected: " + client);
+    // ===== OCSF lifecycle hooks ===========================================
+
+    @Override protected void serverStarted() { log("listening on port " + getPort()); }
+    @Override protected void serverStopped() { log("stopped."); }
+    @Override protected void clientConnected(ConnectionToClient client) { log("client connected: " + client); }
+    @Override protected synchronized void clientDisconnected(ConnectionToClient client) { log("client disconnected: " + client); }
+    @Override protected synchronized void clientException(ConnectionToClient client, Throwable e) {
+        log("client exception (" + client + "): " + e.getMessage());
     }
 
-    @Override
-    protected synchronized void clientDisconnected(ConnectionToClient client) {
-        log("Client disconnected: " + client);
-    }
-
-    @Override
-    protected synchronized void clientException(ConnectionToClient client, Throwable exception) {
-        log("Client connection exception (" + client + "): " + exception.getMessage());
-    }
-
-    // ===== Helpers ========================================================
+    // ===== helpers ========================================================
 
     private void safeSend(ConnectionToClient client, Message response) {
-        try {
-            client.sendToClient(response);
-        } catch (Exception e) {
-            log("  -> failed to send response to " + client + ": " + e.getMessage());
-        }
+        try { client.sendToClient(response); }
+        catch (Exception e) { log("failed to send to " + client + ": " + e.getMessage()); }
     }
 
-    private void log(String text) {
-        System.out.println("[HSTSServer] " + text);
-    }
+    private void log(String text) { System.out.println("[HSTSServer] " + text); }
 }
