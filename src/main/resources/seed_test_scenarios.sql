@@ -131,12 +131,14 @@ VALUES
         'O(n)', 'O(log n)', 'O(n log n)', 'O(1)', 2, 'Complexity', 'EASY', 1, 2, TRUE);
 
 -- ---- Scenario 1: one user per role (password 1234 for all) ----
+-- Passwords are stored as SHA-256 hashes (never plaintext); the server hashes
+-- the typed password before comparing (see server.db.PasswordHasher).
 INSERT INTO Users (username, password, role, display_name, id_number) VALUES
-    ('teacher',   '1234', 'TEACHER',     'Dana Cohen (Teacher)',     NULL),
-    ('coord',     '1234', 'COORDINATOR', 'Yossi Levi (Coordinator)', NULL),
-    ('principal', '1234', 'PRINCIPAL',   'Rita Bar (Principal)',     NULL),
-    ('maya',      '1234', 'STUDENT',     'Maya Student',             '207570227'),
-    ('noa',       '1234', 'STUDENT',     'Noa Student',              '315497081');
+    ('teacher',   SHA2('1234', 256), 'TEACHER',     'Dana Cohen (Teacher)',     NULL),
+    ('coord',     SHA2('1234', 256), 'COORDINATOR', 'Yossi Levi (Coordinator)', NULL),
+    ('principal', SHA2('1234', 256), 'PRINCIPAL',   'Rita Bar (Principal)',     NULL),
+    ('maya',      SHA2('1234', 256), 'STUDENT',     'Maya Student',             '207570227'),
+    ('noa',       SHA2('1234', 256), 'STUDENT',     'Noa Student',              '315497081');
 
 -- ---- Scenario 14: enrollment (maya+noa in Algorithms & Databases,
 --      NOT in Computer Networks — gives a negative case to test) ----

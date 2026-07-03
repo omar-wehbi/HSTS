@@ -18,7 +18,8 @@ import java.sql.SQLException;
 public class UserDAO {
 
     /**
-     * Verifies credentials.
+     * Verifies credentials. The typed password is hashed (SHA-256) and compared
+     * against the stored hash — plaintext passwords never touch the database.
      *
      * @return the matching {@link User} (without password) or {@code null} if the
      *         username/password pair is wrong.
@@ -29,7 +30,7 @@ public class UserDAO {
         try (Connection conn = DatabaseConfig.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setString(1, username);
-            ps.setString(2, password);
+            ps.setString(2, PasswordHasher.sha256(password));
             try (ResultSet rs = ps.executeQuery()) {
                 if (rs.next()) {
                     return new User(

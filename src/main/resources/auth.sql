@@ -14,7 +14,7 @@ USE hsts_a3_db;
 CREATE TABLE IF NOT EXISTS Users (
     id           INT          NOT NULL AUTO_INCREMENT,
     username     VARCHAR(64)  NOT NULL,
-    password     VARCHAR(255) NOT NULL,   -- prototype: stored as-is (hash in production)
+    password     VARCHAR(255) NOT NULL,   -- SHA-256 hash (hex), never plaintext
     role         ENUM('STUDENT','TEACHER','COORDINATOR','PRINCIPAL') NOT NULL,
     display_name VARCHAR(255) NOT NULL,
     id_number    VARCHAR(20)  NULL,       -- national ID (ת"ז), for students
@@ -39,13 +39,13 @@ DELETE FROM Enrollments;
 DELETE FROM Users;
 ALTER TABLE Users AUTO_INCREMENT = 1;
 
--- ---- Seed users: one per role (password is simple for the prototype) ----
+-- ---- Seed users: one per role (password 1234, stored as SHA-256 hash) ----
 INSERT INTO Users (username, password, role, display_name, id_number) VALUES
-    ('teacher',   '1234', 'TEACHER',     'Dana Cohen (Teacher)',     NULL),
-    ('coord',     '1234', 'COORDINATOR', 'Yossi Levi (Coordinator)', NULL),
-    ('principal', '1234', 'PRINCIPAL',   'Rita Bar (Principal)',     NULL),
-    ('maya',      '1234', 'STUDENT',     'Maya Student',             '207570227'),
-    ('noa',       '1234', 'STUDENT',     'Noa Student',              '315497081');
+    ('teacher',   SHA2('1234', 256), 'TEACHER',     'Dana Cohen (Teacher)',     NULL),
+    ('coord',     SHA2('1234', 256), 'COORDINATOR', 'Yossi Levi (Coordinator)', NULL),
+    ('principal', SHA2('1234', 256), 'PRINCIPAL',   'Rita Bar (Principal)',     NULL),
+    ('maya',      SHA2('1234', 256), 'STUDENT',     'Maya Student',             '207570227'),
+    ('noa',       SHA2('1234', 256), 'STUDENT',     'Noa Student',              '315497081');
 
 -- ---- Enroll the two students in courses 1 and 2 (from seed.sql) ----
 INSERT INTO Enrollments (user_id, course_id)
