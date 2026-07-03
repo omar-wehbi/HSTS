@@ -14,6 +14,11 @@ public class Message implements Serializable {
 
     /** Protocol verbs understood by both tiers. */
     public enum Command {
+        // ----- Authentication: client -> server -----
+        LOGIN,                  // payload: Credentials     -> SUCCESS: User  | ERROR: reason
+        LOGOUT,                 // payload: null            -> SUCCESS: null
+        GET_CURRENT_USER,       // payload: null            -> SUCCESS: User (or null if none)
+
         // ----- Question bank: client -> server -----
         GET_COURSES,            // payload: null            -> SUCCESS: List<Course>
         GET_QUESTIONS,          // payload: null            -> SUCCESS: List<Question> (current bank)

@@ -1,12 +1,15 @@
 package server;
 
 import common.entities.Question;
+import common.entities.User;
+import common.network.Credentials;
 import common.network.Message;
 import common.network.Message.Command;
 import ocsf.server.AbstractServer;
 import ocsf.server.ConnectionToClient;
 import server.db.CourseDAO;
 import server.db.QuestionDAO;
+import server.db.UserDAO;
 
 import java.io.Serializable;
 import java.util.List;
@@ -21,8 +24,10 @@ import java.util.List;
  */
 public class HSTSServer extends AbstractServer {
 
-    private final QuestionDAO questionDAO = new QuestionDAO();
-    private final CourseDAO   courseDAO   = new CourseDAO();
+    private final QuestionDAO    questionDAO = new QuestionDAO();
+    private final CourseDAO      courseDAO   = new CourseDAO();
+    private final UserDAO        userDAO     = new UserDAO();
+    private final SessionManager sessions    = new SessionManager();
 
     public HSTSServer(int port) {
         super(port);
@@ -40,6 +45,16 @@ public class HSTSServer extends AbstractServer {
         Message request = (Message) msg;
         try {
             switch (request.getCommand()) {
+                case LOGIN:
+                    handleLogin(request, client);
+                    break;
+                case LOGOUT:
+                    sessions.logout(client);
+                    safeSend(client, new Message(Command.SUCCESS));
+                    break;
+                case GET_CURRENT_USER:
+                    safeSend(client, new Message(Command.SUCCESS, sessions.getUser(client)));
+                    break;
                 case GET_COURSES:
                     safeSend(client, new Message(Command.SUCCESS, (Serializable) courseDAO.getAll()));
                     break;
@@ -74,6 +89,25 @@ public class HSTSServer extends AbstractServer {
     }
 
     // ===== handlers =======================================================
+
+    private void handleLogin(Message request, ConnectionToClient client) {
+        if (!(request.getPayload() instanceof Credentials)) {
+            safeSend(client, new Message(Command.ERROR, "LOGIN requires credentials."));
+            return;
+        }
+        Credentials cred = (Credentials) request.getPayload();
+        User user = userDAO.authenticate(cred.getUsername(), cred.getPassword());
+        if (user == null) {
+            safeSend(client, new Message(Command.ERROR, "Invalid username or password."));
+            return;
+        }
+        if (!sessions.login(client, user)) {
+            safeSend(client, new Message(Command.ERROR, "This user is already logged in."));
+            return;
+        }
+        log("login: " + user.getUsername() + " (" + user.getRole() + ")");
+        safeSend(client, new Message(Command.SUCCESS, user));
+    }
 
     private void handleAdd(Message request, ConnectionToClient client) {
         if (!(request.getPayload() instanceof Question)) {
@@ -117,7 +151,10 @@ public class HSTSServer extends AbstractServer {
     @Override protected void serverStarted() { log("listening on port " + getPort()); }
     @Override protected void serverStopped() { log("stopped."); }
     @Override protected void clientConnected(ConnectionToClient client) { log("client connected: " + client); }
-    @Override protected synchronized void clientDisconnected(ConnectionToClient client) { log("client disconnected: " + client); }
+    @Override protected synchronized void clientDisconnected(ConnectionToClient client) {
+        sessions.logout(client);   // free the username so the user can log in again
+        log("client disconnected: " + client);
+    }
     @Override protected synchronized void clientException(ConnectionToClient client, Throwable e) {
         log("client exception (" + client + "): " + e.getMessage());
     }

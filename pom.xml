@@ -43,6 +43,14 @@
 
         <!-- OCSF networking is now native to the source tree
              (src/main/java/ocsf/**) — no external dependency. -->
+
+        <!-- Testing (Person 1: test infrastructure for the whole team) -->
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <version>5.10.2</version>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 
     <build>
@@ -56,6 +64,13 @@
                     <source>17</source>
                     <target>17</target>
                 </configuration>
+            </plugin>
+
+            <!-- Run JUnit 5 tests on `mvn test` -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>3.2.5</version>
             </plugin>
 
             <!-- Copy deployment properties beside the built JARs -->
