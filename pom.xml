@@ -73,6 +73,41 @@
                 <version>3.2.5</version>
             </plugin>
 
+            <!-- Test coverage: report generated on `mvn test` at
+                 target/site/jacoco/index.html (Person 1: test infrastructure) -->
+            <plugin>
+                <groupId>org.jacoco</groupId>
+                <artifactId>jacoco-maven-plugin</artifactId>
+                <version>0.8.13</version>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>prepare-agent</goal>
+                        </goals>
+                        <configuration>
+                            <!-- Instrument only project packages. Without this, on
+                                 very new JDKs the agent also tries to read JDK core
+                                 classes (e.g. java.sql.*) whose class-file version
+                                 it doesn't support yet. Applies to the agent only —
+                                 the report goal uses different pattern semantics. -->
+                            <includes>
+                                <include>server.*</include>
+                                <include>client.*</include>
+                                <include>common.*</include>
+                                <include>ocsf.*</include>
+                            </includes>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <id>report</id>
+                        <phase>test</phase>
+                        <goals>
+                            <goal>report</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+
             <!-- Copy deployment properties beside the built JARs -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
