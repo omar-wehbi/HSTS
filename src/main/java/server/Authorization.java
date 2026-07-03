@@ -46,4 +46,48 @@ public final class Authorization {
             throw new AuthorizationException("You are not authorized to perform this action.");
         }
     }
+
+    // ===== course-level checks ============================================
+
+    /**
+     * How enrollment is looked up. {@code UserDAO::isEnrolled} matches this
+     * signature; tests can pass a simple lambda instead of a database.
+     */
+    @FunctionalInterface
+    public interface EnrollmentCheck {
+        boolean isEnrolled(int userId, int courseId);
+    }
+
+    /**
+     * Ensures the caller is logged in and enrolled in the given course
+     * (e.g. scenario 14: a student may use a course's study bot only if
+     * enrolled in that course).
+     *
+     * @throws AuthorizationException if not logged in or not enrolled.
+     */
+    public static void requireEnrollment(User user, int courseId, EnrollmentCheck check) {
+        if (user == null) {
+            throw new AuthorizationException("You must be logged in.");
+        }
+        if (!check.isEnrolled(user.getId(), courseId)) {
+            throw new AuthorizationException("You are not enrolled in this course.");
+        }
+    }
+
+    /**
+     * Ensures the caller may access the given course's content: staff roles
+     * (TEACHER / COORDINATOR / PRINCIPAL) always may; a STUDENT only if
+     * enrolled in that course.
+     *
+     * @throws AuthorizationException if not logged in or not allowed.
+     */
+    public static void requireCourseAccess(User user, int courseId, EnrollmentCheck check) {
+        if (user == null) {
+            throw new AuthorizationException("You must be logged in.");
+        }
+        if (hasRole(user, Role.TEACHER, Role.COORDINATOR, Role.PRINCIPAL)) {
+            return;   // staff see all courses
+        }
+        requireEnrollment(user, courseId, check);
+    }
 }

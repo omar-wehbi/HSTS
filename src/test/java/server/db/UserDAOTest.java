@@ -50,4 +50,17 @@ class UserDAOTest {
         assertNotNull(maya);
         assertTrue(dao.isEnrolled(maya.getId(), 1), "maya is enrolled in course 1");
     }
+
+    @Test
+    void enrollmentGuardWiresToTheRealDao() {
+        // UserDAO::isEnrolled plugs straight into Authorization.requireEnrollment.
+        User maya = dao.authenticate("maya", "1234");
+        assertNotNull(maya);
+        // Enrolled in course 1 (Algorithms) — allowed.
+        assertDoesNotThrow(() ->
+                server.Authorization.requireEnrollment(maya, 1, dao::isEnrolled));
+        // NOT enrolled in course 3 (Computer Networks) — rejected.
+        assertThrows(server.AuthorizationException.class, () ->
+                server.Authorization.requireEnrollment(maya, 3, dao::isEnrolled));
+    }
 }
