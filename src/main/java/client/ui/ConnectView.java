@@ -103,8 +103,8 @@ public class ConnectView extends AbstractScreenUI {
     }
 
     private void onConnected() {
-        statusLabel.setText("Connected. Loading…");
-        ScreenManager.getInstance().setScreen(new QuestionsView());
+        statusLabel.setText("Connected. Please sign in.");
+        ScreenManager.getInstance().setScreen(new LoginView());
     }
 
     private void showError(Throwable e) {
