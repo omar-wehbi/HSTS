@@ -82,6 +82,9 @@ public class HSTSServer extends AbstractServer {
                     safeSend(client, new Message(Command.ERROR,
                             "Unsupported command: " + request.getCommand()));
             }
+        } catch (AuthorizationException e) {
+            // A handler called Authorization.requireRole(...) and the caller wasn't allowed.
+            safeSend(client, new Message(Command.ERROR, e.getMessage()));
         } catch (Exception e) {
             log("handler threw: " + e.getMessage());
             safeSend(client, new Message(Command.ERROR, "Server error: " + e.getMessage()));
