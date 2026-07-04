@@ -44,7 +44,12 @@
 
         <!-- Left: question list -->
         <VBox prefWidth="340.0" spacing="12.0" styleClass="card">
-            <Label styleClass="section-title" text="Question bank"/>
+            <HBox alignment="CENTER_LEFT" spacing="8.0">
+                <Label styleClass="section-title" text="Question bank"/>
+                <Region HBox.hgrow="ALWAYS"/>
+                <Button fx:id="refreshButton" onAction="#onRefresh"
+                        styleClass="secondary-button" text="⟳ Refresh"/>
+            </HBox>
             <ListView fx:id="listView" styleClass="questions-list" VBox.vgrow="ALWAYS"/>
         </VBox>
 

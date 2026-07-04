@@ -130,15 +130,20 @@ class QuestionServiceTest {
     }
 
     @Test
-    void validAddReturnsTheRefreshedBank() {
+    void validAddRepliesWithTheSavedQuestionOnlyAndNoImageBytes() {
+        // NFR 18: mutation replies are surgical — the affected question, never
+        // the whole bank, and never an echo of the uploaded illustration bytes.
         Question q = validQuestion();
+        q.setImagePath("d.png");
+        q.setImageData(new byte[]{1, 2, 3});
         when(dao.add(q)).thenReturn(q);
-        when(dao.getAllCurrent()).thenReturn(List.of(q));
 
         Message r = service().add(user(Role.TEACHER), q);
 
         assertThat(r.getCommand()).isEqualTo(Command.SUCCESS);
-        assertThat((List<?>) r.getPayload()).hasSize(1);
+        Question saved = (Question) r.getPayload();
+        assertThat(saved.getImagePath()).isEqualTo("d.png");
+        assertThat(saved.getImageData()).as("no byte echo (NFR 18)").isNull();
         verify(dao).add(q);
     }
 
@@ -159,20 +164,20 @@ class QuestionServiceTest {
     }
 
     @Test
-    void validUpdateGoesThroughAndRefreshesTheBank() {
+    void validUpdateRepliesWithTheNewCurrentVersion() {
         Question q = validQuestion();
         q.setBaseId(5);
         when(dao.update(q)).thenReturn(q);
-        when(dao.getAllCurrent()).thenReturn(List.of(q));
 
         Message r = service().update(user(Role.TEACHER), q);
 
         assertThat(r.getCommand()).isEqualTo(Command.SUCCESS);
+        assertThat(r.getPayload()).isSameAs(q);
         verify(dao).update(q);
     }
 
     @Test
-    void deleteValidatesThePayloadAndReportsUnknownFamilies() {
+    void deleteValidatesThePayloadAndRepliesWithTheRemovedFamilyId() {
         QuestionService s = service();
         assertThat(s.delete(user(Role.TEACHER), "family").getCommand()).isEqualTo(Command.ERROR);
 
@@ -180,8 +185,9 @@ class QuestionServiceTest {
         assertThat(s.delete(user(Role.TEACHER), 99).getCommand()).isEqualTo(Command.ERROR);
 
         when(dao.delete(1)).thenReturn(true);
-        when(dao.getAllCurrent()).thenReturn(List.of());
-        assertThat(s.delete(user(Role.TEACHER), 1).getCommand()).isEqualTo(Command.SUCCESS);
+        Message r = s.delete(user(Role.TEACHER), 1);
+        assertThat(r.getCommand()).isEqualTo(Command.SUCCESS);
+        assertThat(r.getPayload()).as("reply = removed baseId (NFR 18)").isEqualTo(1);
     }
 
     @Test

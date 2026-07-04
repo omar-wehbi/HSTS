@@ -42,7 +42,7 @@ public class QuestionsView extends AbstractScreenUI {
     @FXML private ComboBox<String>   difficultyBox;
     @FXML private TextField          topicField;
     @FXML private Button             newButton, deleteButton, saveButton, imageButton, imageClearButton,
-                                     historyButton;
+                                     historyButton, refreshButton;
     @FXML private Label              countBadge, idBadge, editorTitle, hintLabel, statusLabel, savedLabel,
                                      imageNameLabel;
     @FXML private StackPane          logoBox;
@@ -71,7 +71,9 @@ public class QuestionsView extends AbstractScreenUI {
 
     @Override
     public Parent render() {
-        client().setServerMessageHandler(this::onServerMessage);
+        // No setServerMessageHandler: since Phase 8 this screen receives server
+        // responses via the EventBus (@Subscribe onServerMessage below) —
+        // ScreenManager registers/unregisters it automatically on navigation.
         FXMLLoader loader = new FXMLLoader(getClass().getResource(FXML_PATH));
         loader.setController(this);
         try {
@@ -115,6 +117,16 @@ public class QuestionsView extends AbstractScreenUI {
     @FXML
     private void onNew() {
         startNew();
+    }
+
+    /**
+     * Manual full re-fetch — the only intentional whole-bank transfer left;
+     * day-to-day changes arrive as surgical single-row replies (NFR 18).
+     */
+    @FXML
+    private void onRefresh() {
+        statusLabel.setText("Refreshing…");
+        send(new Message(Command.GET_QUESTIONS));
     }
 
     /** Picks an illustration file, size-checked, and previews it immediately. */
@@ -203,8 +215,19 @@ public class QuestionsView extends AbstractScreenUI {
 
     // ===== server responses (on the FX thread) ============================
 
+    /**
+     * Pub/Sub entry point (Pattern: Observer): {@code HSTSClient} publishes every
+     * server {@link Message} as a {@link client.events.ServerMessageEvent}; this
+     * screen is registered by {@code ScreenManager} while shown, and events
+     * arrive already on the JavaFX thread.
+     */
+    @org.greenrobot.eventbus.Subscribe
+    public void onServerMessage(client.events.ServerMessageEvent event) {
+        handle(event.getMessage());
+    }
+
     @SuppressWarnings("unchecked")
-    public void onServerMessage(Message msg) {
+    private void handle(Message msg) {
         switch (msg.getCommand()) {
             case SUCCESS:
                 Object payload = msg.getPayload();
@@ -223,6 +246,10 @@ public class QuestionsView extends AbstractScreenUI {
                 } else if (awaitingHistory && payload instanceof List) {
                     awaitingHistory = false;
                     openHistoryDialog((List<Question>) payload);
+                } else if (awaitingSave && payload instanceof Question) {
+                    applySaved((Question) payload);        // surgical add/update reply (NFR 18)
+                } else if (awaitingSave && payload instanceof Integer) {
+                    applyDeleted((Integer) payload);       // surgical delete reply (NFR 18)
                 } else if (payload instanceof List) {
                     List<?> li = (List<?>) payload;
                     if (!li.isEmpty() && li.get(0) instanceof Course) {
@@ -230,17 +257,8 @@ public class QuestionsView extends AbstractScreenUI {
                         if (courseBox.getValue() == null && !courseBox.getItems().isEmpty())
                             courseBox.setValue(courseBox.getItems().get(0));
                     } else {
-                        boolean wasAdd = pendingWasAdd;
-                        updateBank((List<Question>) li);
-                        if (awaitingSave) {
-                            awaitingSave = false;
-                            pendingWasAdd = false;
-                            if (wasAdd) startNew();   // clear the form so Add doesn't duplicate
-                            showSavedBadge();
-                            statusLabel.setText("Saved to the database.");
-                        } else {
-                            statusLabel.setText("Bank: " + li.size() + " questions.");
-                        }
+                        updateBank((List<Question>) li);   // full bank: initial load / manual refresh
+                        statusLabel.setText("Bank: " + li.size() + " questions.");
                     }
                 }
                 break;
@@ -258,6 +276,41 @@ public class QuestionsView extends AbstractScreenUI {
         }
     }
 
+    /**
+     * Applies a surgical ADD/UPDATE reply: only the affected row changes —
+     * no full-list re-fetch, no forced refresh (NFR 18).
+     */
+    private void applySaved(Question q) {
+        boolean wasAdd = pendingWasAdd;
+        awaitingSave = false;
+        pendingWasAdd = false;
+
+        if (wasAdd) {
+            listView.getItems().add(q);   // new family: append (bank is ordered by baseId)
+            startNew();                   // clear the form so Add doesn't duplicate
+        } else {
+            for (int i = 0; i < listView.getItems().size(); i++) {
+                if (listView.getItems().get(i).getBaseId() == q.getBaseId()) {
+                    listView.getItems().set(i, q);   // replace the family's row in place
+                    break;
+                }
+            }
+            listView.getSelectionModel().select(q);  // re-fills the form with the new version
+        }
+        updateCountBadge();
+        showSavedBadge();
+        statusLabel.setText("Saved to the database.");
+    }
+
+    /** Applies a surgical DELETE reply: removes just the deleted family's row. */
+    private void applyDeleted(int baseId) {
+        awaitingSave = false;
+        listView.getItems().removeIf(item -> item.getBaseId() == baseId);
+        startNew();
+        updateCountBadge();
+        statusLabel.setText("Question deleted (all versions).");
+    }
+
     /** Shows the version-history dialog; its illustrations load through us lazily. */
     private void openHistoryDialog(List<Question> history) {
         statusLabel.setText("History: " + history.size()
@@ -273,10 +326,15 @@ public class QuestionsView extends AbstractScreenUI {
         historyDialog.show();
     }
 
+    private void updateCountBadge() {
+        int n = listView.getItems().size();
+        countBadge.setText(n + (n == 1 ? " question" : " questions"));
+    }
+
     private void updateBank(List<Question> bank) {
         int keepBaseId = (selected == null) ? -1 : selected.getBaseId();
         listView.getItems().setAll(bank);
-        countBadge.setText(bank.size() + (bank.size() == 1 ? " question" : " questions"));
+        updateCountBadge();
         if (keepBaseId != -1) {
             for (Question q : bank) {
                 if (q.getBaseId() == keepBaseId) { listView.getSelectionModel().select(q); return; }

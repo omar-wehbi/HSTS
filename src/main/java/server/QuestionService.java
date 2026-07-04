@@ -33,9 +33,11 @@ import java.io.Serializable;
  * server's central catch turns into a clean {@code ERROR} reply (Person 1's
  * Guard pattern). Bad payloads return an {@code ERROR} {@link Message} directly.
  *
- * <p>Mutation replies currently carry the refreshed current bank (the
- * prototype's contract with the client); Phase 8 will slim them down to the
- * affected question only (NFR 18).
+ * <p>Mutation replies are <b>surgical</b> (NFR 18 — no forced full refresh):
+ * ADD/UPDATE answer with the affected {@link Question} only (illustration bytes
+ * stripped — the client already has them), DELETE answers with the removed
+ * {@code baseId}. The full bank travels only for an explicit
+ * {@code GET_QUESTIONS} (initial load / manual refresh).
  */
 public class QuestionService {
 
@@ -112,7 +114,7 @@ public class QuestionService {
         if (invalid != null) return error(invalid);
 
         Question saved = questionDAO.add(q);
-        return (saved != null) ? refreshedBank() : error("Add failed.");
+        return (saved != null) ? success(withoutImageBytes(saved)) : error("Add failed.");
     }
 
     /** Scenario 2.2 — versioned edit (old version stays); payload: {@link Question}. */
@@ -129,7 +131,7 @@ public class QuestionService {
         }
 
         Question updated = questionDAO.update(q);
-        return (updated != null) ? refreshedBank() : error("Update failed.");
+        return (updated != null) ? success(withoutImageBytes(updated)) : error("Update failed.");
     }
 
     /** Scenario 2.4 — delete a whole version family; payload: Integer baseId. */
@@ -139,7 +141,7 @@ public class QuestionService {
             return error("DELETE_QUESTION requires a baseId (Integer).");
         }
         boolean removed = questionDAO.delete((Integer) payload);
-        return removed ? refreshedBank() : error("Delete failed — question not found.");
+        return removed ? success((Integer) payload) : error("Delete failed — question not found.");
     }
 
     // ===== helpers ========================================================
@@ -149,8 +151,10 @@ public class QuestionService {
         Authorization.requireRole(caller, Role.values());
     }
 
-    private Message refreshedBank() {
-        return success((Serializable) questionDAO.getAllCurrent());
+    /** Mutation replies never echo illustration bytes back (NFR 18). */
+    private static Question withoutImageBytes(Question q) {
+        q.setImageData(null);
+        return q;
     }
 
     private static Message success(Serializable payload) {

@@ -26,9 +26,9 @@ public class Message implements Serializable {
         GET_QUESTIONS_FILTERED, // payload: QuestionFilter  -> SUCCESS: List<Question> (course + optional topic/difficulty)
         GET_QUESTION_HISTORY,   // payload: Integer baseId  -> SUCCESS: List<Question>
         GET_QUESTION_IMAGE,     // payload: Integer question id -> SUCCESS: byte[] (null if no illustration)
-        ADD_QUESTION,           // payload: Question        -> SUCCESS: List<Question> (refreshed bank)
-        UPDATE_QUESTION,        // payload: Question        -> SUCCESS: List<Question>
-        DELETE_QUESTION,        // payload: Integer baseId  -> SUCCESS: List<Question>
+        ADD_QUESTION,           // payload: Question        -> SUCCESS: Question (saved, no image bytes)
+        UPDATE_QUESTION,        // payload: Question        -> SUCCESS: Question (new current version)
+        DELETE_QUESTION,        // payload: Integer baseId  -> SUCCESS: Integer (removed baseId)
 
         // ----- server -> client -----
         SUCCESS,

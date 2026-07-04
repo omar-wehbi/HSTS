@@ -110,6 +110,26 @@ class QuestionFilterIntegrationTest {
     }
 
     @Test
+    void mutationRepliesAreSurgicalNotFullBank() throws Exception {
+        // Phase 8 (NFR 18): ADD answers with the saved Question, DELETE with the
+        // removed baseId — never the whole bank.
+        TestClient c = new TestClient();
+        c.openConnection();
+        login(c);
+
+        Message added = c.call(new Message(Command.ADD_QUESTION,
+                QuestionBankTestFixture.sample(QuestionBankTestFixture.COURSE_ALGORITHMS, "surgical")));
+        assertEquals(Command.SUCCESS, added.getCommand());
+        Question saved = (Question) added.getPayload();
+        assertEquals("surgical", saved.getQuestionText());
+
+        Message deleted = c.call(new Message(Command.DELETE_QUESTION, saved.getBaseId()));
+        assertEquals(Command.SUCCESS, deleted.getCommand());
+        assertEquals(saved.getBaseId(), deleted.getPayload());
+        c.closeConnection();
+    }
+
+    @Test
     void withoutLoginEveryBankCommandIsRejected() throws Exception {
         // Phase 5 (R-063): an anonymous socket can neither read nor mutate.
         TestClient c = new TestClient();
