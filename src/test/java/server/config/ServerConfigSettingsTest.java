@@ -117,4 +117,23 @@ class ServerConfigSettingsTest {
                 .contains("db.host=").contains("db.port=").contains("db.name=")
                 .contains("db.user=").contains("db.password=");
     }
+
+    @Test
+    void savePathIsTheExternalServerPropertiesLocation() {
+        // Where the dialog's "save as defaults" writes: beside the JAR / project root.
+        assertThat(ServerConfig.externalConfigPath().getFileName().toString())
+                .isEqualTo("server.properties");
+    }
+
+    // ===== legacy credentials API (Person 1) ==============================
+
+    @Test
+    void legacyCredentialsLoaderStillWorks() {
+        // ServerConfig.load() predates DbSettings and has no callers left in
+        // main code since Phase 0.5, but it is Person 1's public API — keep it
+        // working until the team agrees to remove it.
+        ServerConfig.Credentials creds = ServerConfig.load();
+        assertThat(creds.user()).isNotBlank();
+        assertThat(creds.password()).isNotNull();
+    }
 }
