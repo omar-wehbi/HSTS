@@ -120,6 +120,60 @@ VALUES
     (3, 'Which protocol translates domain names into IP addresses?',
         'HTTP', 'DNS', 'FTP', 'SMTP', 2, 'Protocols', 'EASY');
 
+
+-- ---- Scenario 3 prep (Person 2): RICH question pool for course 1 ----
+-- Auto-build demo needs breadth: course 1 (Algorithms) gets 10 EASY +
+-- 6 MEDIUM + 3 HARD across three topics, so "10 questions, 5 EASY + 5
+-- MEDIUM" succeeds. Course 3 (Networks) deliberately stays SMALL (2
+-- questions) so the "not enough questions -> no exam" negative demo works.
+INSERT INTO Questions
+    (course_id, question_text, answer_1, answer_2, answer_3, answer_4, correct_answer, topic, difficulty)
+VALUES
+    (1, 'What is the time complexity of accessing an array element by index?',
+        'O(1)', 'O(log n)', 'O(n)', 'O(n^2)', 1, 'Complexity', 'EASY'),
+    (1, 'What is the time complexity of linear search in an unsorted array?',
+        'O(1)', 'O(log n)', 'O(n)', 'O(n log n)', 3, 'Complexity', 'EASY'),
+    (1, 'Which notation describes an upper bound on running time?',
+        'Big-O', 'Big-Omega', 'Big-Theta', 'Little-o', 1, 'Complexity', 'EASY'),
+    (1, 'How many comparisons does bubble sort make on an already sorted array of n elements (optimized version)?',
+        'n-1', 'n^2', 'n log n', '0', 1, 'Sorting', 'EASY'),
+    (1, 'Which sorting algorithm repeatedly selects the minimum element?',
+        'Bubble sort', 'Selection sort', 'Merge sort', 'Quick sort', 2, 'Sorting', 'EASY'),
+    (1, 'Which sorting algorithm is stable by nature?',
+        'Selection sort', 'Heap sort', 'Merge sort', 'Quick sort', 3, 'Sorting', 'EASY'),
+    (1, 'Which data structure uses LIFO ordering?',
+        'Queue', 'Stack', 'Heap', 'Deque', 2, 'Data Structures', 'EASY'),
+    (1, 'What is stored in a binary search tree node relative to its left subtree?',
+        'Smaller keys', 'Larger keys', 'Equal keys', 'Random keys', 1, 'Data Structures', 'EASY'),
+    (1, 'Which data structure gives O(1) average lookup by key?',
+        'Array', 'Linked list', 'Hash table', 'Binary tree', 3, 'Data Structures', 'EASY'),
+    (1, 'What is the height of a balanced binary tree with n nodes?',
+        'O(1)', 'O(log n)', 'O(n)', 'O(n log n)', 2, 'Data Structures', 'EASY'),
+    (1, 'What is the average-case time complexity of QuickSort?',
+        'O(n)', 'O(n log n)', 'O(n^2)', 'O(log n)', 2, 'Sorting', 'MEDIUM'),
+    (1, 'How much extra memory does standard merge sort require?',
+        'O(1)', 'O(log n)', 'O(n)', 'O(n^2)', 3, 'Sorting', 'MEDIUM'),
+    (1, 'What is the amortized cost of appending to a dynamic array?',
+        'O(1)', 'O(log n)', 'O(n)', 'O(n log n)', 1, 'Complexity', 'MEDIUM'),
+    (1, 'Which traversal of a binary search tree yields sorted order?',
+        'Pre-order', 'In-order', 'Post-order', 'Level-order', 2, 'Data Structures', 'MEDIUM'),
+    (1, 'What is the worst-case complexity of inserting into a binary heap?',
+        'O(1)', 'O(log n)', 'O(n)', 'O(n log n)', 2, 'Data Structures', 'MEDIUM'),
+    (1, 'Dijkstra''s algorithm with a binary heap runs in:',
+        'O(V^2)', 'O((V+E) log V)', 'O(VE)', 'O(E log E)', 2, 'Complexity', 'MEDIUM'),
+    (1, 'Which recurrence describes binary search?',
+        'T(n)=2T(n/2)+O(n)', 'T(n)=T(n/2)+O(1)', 'T(n)=T(n-1)+O(1)', 'T(n)=2T(n-1)+O(1)', 2, 'Complexity', 'HARD'),
+    (1, 'What is the lower bound for comparison-based sorting?',
+        'O(n)', 'O(n log n)', 'O(n^2)', 'O(log n)', 2, 'Sorting', 'HARD'),
+    (1, 'In a red-black tree, the longest root-to-leaf path is at most:',
+        'Equal to the shortest', 'Twice the shortest', 'Three times the shortest', 'Unbounded', 2, 'Data Structures', 'HARD'),
+    (2, 'Which SQL clause filters groups after aggregation?',
+        'WHERE', 'HAVING', 'GROUP BY', 'ORDER BY', 2, 'SQL', 'MEDIUM'),
+    (2, 'Which isolation level allows non-repeatable reads but not dirty reads?',
+        'READ UNCOMMITTED', 'READ COMMITTED', 'REPEATABLE READ', 'SERIALIZABLE', 2, 'Transactions', 'HARD'),
+    (2, 'A foreign key enforces which kind of integrity?',
+        'Entity', 'Referential', 'Domain', 'Semantic', 2, 'SQL', 'EASY');
+
 UPDATE Questions SET base_id = id WHERE base_id IS NULL;
 
 -- ---- Scenario 2 note: one question carries a real ILLUSTRATION ----
@@ -129,14 +183,17 @@ UPDATE Questions
        image_data = 0x89504E470D0A1A0A0000000D49484452000000180000001808020000006F15AAAF0000002E4944415478DA63F8FAFD175510C34830482EE00410A1494304E1085376D4A05183460D1A3588FA068D96D9B81000E96CADCC24DAE8B30000000049454E44AE426082
  WHERE id = 2;
 
--- ---- Scenario 2.2: versioning demo — question 1 edited; v1 KEPT, v2 current ----
+-- ---- Scenario 2.2: versioning demo — question 1 edited TWICE; ----
+-- ---- v1 and v2 KEPT (retired), v3 current — feeds the History view ----
 UPDATE Questions SET is_current = FALSE WHERE id = 1;
 INSERT INTO Questions
     (course_id, question_text, answer_1, answer_2, answer_3, answer_4, correct_answer,
      topic, difficulty, base_id, version, is_current)
 VALUES
     (1, 'What is the time complexity of binary search on a sorted array of n elements?',
-        'O(n)', 'O(log n)', 'O(n log n)', 'O(1)', 2, 'Complexity', 'EASY', 1, 2, TRUE);
+        'O(n)', 'O(log n)', 'O(n log n)', 'O(1)', 2, 'Complexity', 'EASY', 1, 2, FALSE),
+    (1, 'What is the worst-case time complexity of binary search on a sorted array of n elements?',
+        'O(n)', 'O(log n)', 'O(n log n)', 'O(1)', 2, 'Complexity', 'EASY', 1, 3, TRUE);
 
 -- ---- Scenario 1: one user per role (password 1234 for all) ----
 -- Passwords are stored as SHA-256 hashes (never plaintext); the server hashes
