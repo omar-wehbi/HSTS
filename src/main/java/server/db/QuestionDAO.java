@@ -23,8 +23,11 @@ import java.util.List;
  * </ul>
  * Every query uses a {@link PreparedStatement} with bound parameters, so user
  * input can never be executed as SQL (SQL-injection safe).
+ *
+ * <p>Read-only consumers (exam auto-build, study bot) should depend on the
+ * {@link QuestionSource} interface this class implements, not on the DAO itself.
  */
-public class QuestionDAO {
+public class QuestionDAO implements QuestionSource {
 
     private static final String COLS =
             "id, course_id, question_text, answer_1, answer_2, answer_3, answer_4, " +
@@ -38,12 +41,50 @@ public class QuestionDAO {
     }
 
     /** Current questions for one course. */
+    @Override
     public List<Question> getByCourse(int courseId) {
         return query("SELECT " + COLS + " FROM Questions " +
                 "WHERE is_current = TRUE AND course_id = ? ORDER BY base_id", courseId);
     }
 
+    /**
+     * Current questions for one course narrowed by topic and/or difficulty
+     * (the pool query for automatic exam building, scenario 3.4, and for
+     * study-bot source material). Null/blank filter = no filter on that axis.
+     */
+    @Override
+    public List<Question> getByCourseFiltered(int courseId, String topic, String difficulty) {
+        StringBuilder sql = new StringBuilder(
+                "SELECT " + COLS + " FROM Questions WHERE is_current = TRUE AND course_id = ?");
+        List<Object> params = new ArrayList<>();
+        params.add(courseId);
+        if (topic != null && !topic.trim().isEmpty()) {
+            sql.append(" AND topic = ?");
+            params.add(topic.trim());
+        }
+        if (difficulty != null && !difficulty.trim().isEmpty()) {
+            sql.append(" AND difficulty = ?");
+            params.add(difficulty.trim());
+        }
+        sql.append(" ORDER BY base_id");
+
+        List<Question> list = new ArrayList<>();
+        try (Connection conn = DatabaseConfig.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql.toString())) {
+            for (int i = 0; i < params.size(); i++) {
+                ps.setObject(i + 1, params.get(i));
+            }
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) list.add(mapRow(rs));
+            }
+        } catch (SQLException e) {
+            System.err.println("[QuestionDAO] filtered query failed: " + e.getMessage());
+        }
+        return list;
+    }
+
     /** All versions of one question (its history), oldest first. */
+    @Override
     public List<Question> getHistory(int baseId) {
         return query("SELECT " + COLS + " FROM Questions " +
                 "WHERE base_id = ? ORDER BY version", baseId);

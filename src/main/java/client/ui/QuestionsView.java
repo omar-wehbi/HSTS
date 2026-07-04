@@ -212,12 +212,26 @@ public class QuestionsView extends AbstractScreenUI {
         deleteButton.setDisable(false);
         saveButton.setText("Save (new version)");
         editorTitle.setText("Edit question");
-        int pos = listView.getItems().indexOf(q) + 1;
-        idBadge.setText("#" + pos + " · v" + q.getVersion());
+        String displayId = displayIdOf(q);
+        idBadge.setText(displayId + " · v" + q.getVersion());
         setNodeShown(idBadge, true);
         setNodeShown(hintLabel, true);
         clearSavedBadge();
-        statusLabel.setText("Editing question #" + pos + " (saving keeps the old version).");
+        statusLabel.setText("Editing question " + displayId + " (saving keeps the old version).");
+    }
+
+    /**
+     * The official 5-digit display id (semester doc): 4-digit sequence from the
+     * version-family id + one course-code digit. Demo convention: course id
+     * doubles as course code (see schema/README.md). Falls back to the raw id
+     * if a value ever outgrows the scheme, so the UI never breaks.
+     */
+    private static String displayIdOf(Question q) {
+        try {
+            return common.util.DisplayId.format(q.getBaseId(), q.getCourseId());
+        } catch (IllegalArgumentException outOfScheme) {
+            return "#" + q.getBaseId();
+        }
     }
 
     private Question buildFromForm() {
@@ -298,7 +312,7 @@ public class QuestionsView extends AbstractScreenUI {
         protected void updateItem(Question q, boolean empty) {
             super.updateItem(q, empty);
             if (empty || q == null) { setGraphic(null); return; }
-            title.setText("#" + (getIndex() + 1) + "   " + q.getQuestionText());
+            title.setText(displayIdOf(q) + "   " + q.getQuestionText());
             String diff = q.getDifficulty() == null ? "" : " · " + q.getDifficulty();
             sub.setText("v" + q.getVersion() + " · correct: answer " + q.getCorrectAnswer() + diff);
             setGraphic(box);

@@ -5,6 +5,7 @@ import common.entities.User;
 import common.network.Credentials;
 import common.network.Message;
 import common.network.Message.Command;
+import common.network.QuestionFilter;
 import ocsf.server.AbstractServer;
 import ocsf.server.ConnectionToClient;
 import server.db.CourseDAO;
@@ -69,6 +70,9 @@ public class HSTSServer extends AbstractServer {
                     safeSend(client, new Message(Command.SUCCESS,
                             (Serializable) questionDAO.getByCourse((Integer) request.getPayload())));
                     break;
+                case GET_QUESTIONS_FILTERED:
+                    handleFilteredQuery(request, client);
+                    break;
                 case GET_QUESTION_HISTORY:
                     safeSend(client, new Message(Command.SUCCESS,
                             (Serializable) questionDAO.getHistory((Integer) request.getPayload())));
@@ -114,6 +118,21 @@ public class HSTSServer extends AbstractServer {
         }
         log("login: " + user.getUsername() + " (" + user.getRole() + ")");
         safeSend(client, new Message(Command.SUCCESS, user));
+    }
+
+    /**
+     * Question pool narrowed by topic/difficulty — used by the bank UI's filters
+     * and by exam auto-build (scenario 3.4); see {@code QuestionFilter}.
+     */
+    private void handleFilteredQuery(Message request, ConnectionToClient client) {
+        if (!(request.getPayload() instanceof QuestionFilter)) {
+            safeSend(client, new Message(Command.ERROR,
+                    "GET_QUESTIONS_FILTERED requires a QuestionFilter payload."));
+            return;
+        }
+        QuestionFilter f = (QuestionFilter) request.getPayload();
+        safeSend(client, new Message(Command.SUCCESS, (Serializable)
+                questionDAO.getByCourseFiltered(f.getCourseId(), f.getTopic(), f.getDifficulty())));
     }
 
     private void handleAdd(Message request, ConnectionToClient client) {

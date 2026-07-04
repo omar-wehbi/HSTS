@@ -29,3 +29,13 @@ mysql -u root -p < src/main/resources/seed_test_scenarios.sql
 creates the database, every table, and deterministic demo data (login accounts:
 teacher / coord / principal / maya / noa — password `1234`). Re-run any time to
 reset. Then run the tests: `mvnw test` (needs your password in `server.properties`).
+
+## Display-id convention (Person 2, Phase 3)
+
+Question screens show the semester doc's **5-digit display id**: a 4-digit
+sequence (the question's version-family id, `base_id`) followed by **one
+course-code digit**. The `Courses` table has no `course_code` column yet, so by
+team convention the **course id doubles as the course code** (seed courses are
+1–3, single digit). The codec lives in `common/util/DisplayId.java` — if a real
+coding scheme ever arrives from the external course-management system (R-008),
+add a `course_code` column and change only the call sites that pass the code.

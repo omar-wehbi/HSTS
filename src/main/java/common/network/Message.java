@@ -23,6 +23,7 @@ public class Message implements Serializable {
         GET_COURSES,            // payload: null            -> SUCCESS: List<Course>
         GET_QUESTIONS,          // payload: null            -> SUCCESS: List<Question> (current bank)
         GET_QUESTIONS_BY_COURSE,// payload: Integer courseId-> SUCCESS: List<Question>
+        GET_QUESTIONS_FILTERED, // payload: QuestionFilter  -> SUCCESS: List<Question> (course + optional topic/difficulty)
         GET_QUESTION_HISTORY,   // payload: Integer baseId  -> SUCCESS: List<Question>
         ADD_QUESTION,           // payload: Question        -> SUCCESS: List<Question> (refreshed bank)
         UPDATE_QUESTION,        // payload: Question        -> SUCCESS: List<Question>
