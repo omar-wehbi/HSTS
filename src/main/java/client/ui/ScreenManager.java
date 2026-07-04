@@ -22,6 +22,19 @@ public final class ScreenManager {
     /** Shared stylesheet applied to every screen's Scene. */
     private static final String STYLESHEET = "/css/app.css";
 
+    /**
+     * One stable window for the whole app (Person 2, UX fix): the stage opens
+     * once at this size, centered, and then NEVER resizes or re-centers on
+     * navigation — small screens (login/connect) simply center their card
+     * inside it (their roots are StackPanes). Previously every setScreen()
+     * called sizeToScene() + centerOnScreen(), so the window shrank to each
+     * screen's pref size and teleported — the "jumping tiny windows" effect.
+     */
+    private static final double WINDOW_WIDTH  = 1100;
+    private static final double WINDOW_HEIGHT = 700;
+    private static final double MIN_WIDTH     = 860;
+    private static final double MIN_HEIGHT    = 560;
+
     private static ScreenManager instance;
 
     private Stage primaryStage;
@@ -47,6 +60,8 @@ public final class ScreenManager {
     public void init(Stage primaryStage) {
         this.primaryStage = primaryStage;
         this.primaryStage.setTitle("HSTS — High School Test System");
+        this.primaryStage.setMinWidth(MIN_WIDTH);
+        this.primaryStage.setMinHeight(MIN_HEIGHT);
         try {
             primaryStage.getIcons().add(Logo.snapshotImage(128));
         } catch (RuntimeException ignored) {
@@ -79,8 +94,9 @@ public final class ScreenManager {
     /**
      * Renders the given screen and shows it on the primary stage. Uses the
      * screen's template {@code load()} so each screen's post-render hook fires.
-     * Applies the shared stylesheet and resizes/recenters the window to fit the
-     * new screen, so each navigation looks deliberate.
+     * Applies the shared stylesheet. The window keeps its size and position
+     * across navigations (sized and centered exactly once, on first show) —
+     * no jumping, no shrinking to a screen's pref size.
      */
     public void setScreen(AbstractScreenUI screen) {
         // Pub/Sub lifecycle: the outgoing screen stops receiving events, the new
@@ -98,18 +114,19 @@ public final class ScreenManager {
         ClientEventBus.register(screen);
         Scene current = primaryStage.getScene();
         if (current == null) {
-            Scene scene = new Scene(root);
+            // First screen: create the one Scene at the app's standard size.
+            Scene scene = new Scene(root, WINDOW_WIDTH, WINDOW_HEIGHT);
             applyStylesheet(scene);
             primaryStage.setScene(scene);
         } else {
+            // Navigation: swap the root only — size and position are untouched.
             current.setRoot(root);
             applyStylesheet(current);
         }
         if (!primaryStage.isShowing()) {
             primaryStage.show();
+            primaryStage.centerOnScreen();   // once, on first show
         }
-        primaryStage.sizeToScene();
-        primaryStage.centerOnScreen();
     }
 
     private void applyStylesheet(Scene scene) {

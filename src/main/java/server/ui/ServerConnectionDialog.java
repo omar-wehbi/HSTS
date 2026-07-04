@@ -72,6 +72,13 @@ public final class ServerConnectionDialog {
     public static Result showAndGet(DbSettings initial, int initialServerPort) {
         final Result[] out = new Result[1];
         Runnable job = () -> {
+            try {
+                // Native look (Windows/macOS/GTK) instead of Swing's dated default.
+                javax.swing.UIManager.setLookAndFeel(
+                        javax.swing.UIManager.getSystemLookAndFeelClassName());
+            } catch (Exception ignored) {
+                // Cosmetic only — the default theme still works.
+            }
             ServerConnectionDialog d = new ServerConnectionDialog(initial, initialServerPort);
             d.dialog.setVisible(true);   // modal: returns when disposed
             out[0] = d.result;
