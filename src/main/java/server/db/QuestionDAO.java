@@ -1,50 +1,65 @@
 package server.db;
 
 import common.entities.Question;
+import org.hibernate.Session;
+import org.hibernate.Transaction;
 
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.SQLException;
-import java.sql.Statement;
-import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Data Access Object for the {@code Questions} table (Data tier).
+ * Data Access Object for the {@code Questions} table (Data tier) — Hibernate
+ * ORM implementation (Person 2, Phase 7; migrated from JDBC following the
+ * {@code UserDAO} reference, public API unchanged so the server and all tests
+ * were untouched by the persistence-technology swap — the point of the DAO
+ * pattern, proven by the Phase 2 characterization suite staying green).
  *
- * <p>The only class that runs SQL for the question bank. Implements the four
- * bank operations from the assignment:
+ * <p>Implements the four bank operations from the assignment:
  * <ul>
- *   <li><b>view</b>  — {@link #getAllCurrent()} / {@link #getByCourse(int)}</li>
+ *   <li><b>view</b>  — {@link #getAllCurrent()} / {@link #getByCourse(int)} /
+ *                      {@link #getByCourseFiltered(int, String, String)}</li>
  *   <li><b>add</b>   — {@link #add(Question)}</li>
  *   <li><b>edit</b>  — {@link #update(Question)} (versioned: the old version stays)</li>
  *   <li><b>delete</b>— {@link #delete(int)}</li>
  * </ul>
- * Every query uses a {@link PreparedStatement} with bound parameters, so user
- * input can never be executed as SQL (SQL-injection safe).
+ *
+ * <p>Every query uses named parameters — user input can never run as SQL.
+ * Illustration bytes ({@code image_data}) are deliberately handled with
+ * targeted <b>native</b> statements instead of the entity mapping: the column
+ * is a LONGBLOB that must never ride along in list queries (NFR 18), exactly
+ * like the password column is unmapped on {@code User}.
  *
  * <p>Read-only consumers (exam auto-build, study bot) should depend on the
  * {@link QuestionSource} interface this class implements, not on the DAO itself.
  */
 public class QuestionDAO implements QuestionSource {
 
-    private static final String COLS =
-            "id, course_id, question_text, answer_1, answer_2, answer_3, answer_4, " +
-            "correct_answer, image_path, topic, difficulty, base_id, version, is_current";
-
     // ===== READ ===========================================================
 
     /** The current question bank (latest version of every question). */
     public List<Question> getAllCurrent() {
-        return query("SELECT " + COLS + " FROM Questions WHERE is_current = TRUE ORDER BY base_id", -1);
+        try (Session session = HibernateUtil.getSessionFactory().openSession()) {
+            return session.createQuery(
+                            "FROM Question WHERE current = true ORDER BY baseId", Question.class)
+                    .list();
+        } catch (Exception e) {
+            System.err.println("[QuestionDAO] getAllCurrent failed: " + e.getMessage());
+            return List.of();
+        }
     }
 
     /** Current questions for one course. */
     @Override
     public List<Question> getByCourse(int courseId) {
-        return query("SELECT " + COLS + " FROM Questions " +
-                "WHERE is_current = TRUE AND course_id = ? ORDER BY base_id", courseId);
+        try (Session session = HibernateUtil.getSessionFactory().openSession()) {
+            return session.createQuery(
+                            "FROM Question WHERE current = true AND courseId = :course " +
+                            "ORDER BY baseId", Question.class)
+                    .setParameter("course", courseId)
+                    .list();
+        } catch (Exception e) {
+            System.err.println("[QuestionDAO] getByCourse failed: " + e.getMessage());
+            return List.of();
+        }
     }
 
     /**
@@ -54,77 +69,77 @@ public class QuestionDAO implements QuestionSource {
      */
     @Override
     public List<Question> getByCourseFiltered(int courseId, String topic, String difficulty) {
-        StringBuilder sql = new StringBuilder(
-                "SELECT " + COLS + " FROM Questions WHERE is_current = TRUE AND course_id = ?");
-        List<Object> params = new ArrayList<>();
-        params.add(courseId);
-        if (topic != null && !topic.trim().isEmpty()) {
-            sql.append(" AND topic = ?");
-            params.add(topic.trim());
-        }
-        if (difficulty != null && !difficulty.trim().isEmpty()) {
-            sql.append(" AND difficulty = ?");
-            params.add(difficulty.trim());
-        }
-        sql.append(" ORDER BY base_id");
+        StringBuilder hql = new StringBuilder(
+                "FROM Question WHERE current = true AND courseId = :course");
+        boolean byTopic = topic != null && !topic.trim().isEmpty();
+        boolean byDifficulty = difficulty != null && !difficulty.trim().isEmpty();
+        if (byTopic) hql.append(" AND topic = :topic");
+        if (byDifficulty) hql.append(" AND difficulty = :difficulty");
+        hql.append(" ORDER BY baseId");
 
-        List<Question> list = new ArrayList<>();
-        try (Connection conn = DatabaseConfig.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql.toString())) {
-            for (int i = 0; i < params.size(); i++) {
-                ps.setObject(i + 1, params.get(i));
-            }
-            try (ResultSet rs = ps.executeQuery()) {
-                while (rs.next()) list.add(mapRow(rs));
-            }
-        } catch (SQLException e) {
+        try (Session session = HibernateUtil.getSessionFactory().openSession()) {
+            var query = session.createQuery(hql.toString(), Question.class)
+                    .setParameter("course", courseId);
+            if (byTopic) query.setParameter("topic", topic.trim());
+            if (byDifficulty) query.setParameter("difficulty", difficulty.trim());
+            return query.list();
+        } catch (Exception e) {
             System.err.println("[QuestionDAO] filtered query failed: " + e.getMessage());
+            return List.of();
         }
-        return list;
     }
 
     /** All versions of one question (its history), oldest first. */
     @Override
     public List<Question> getHistory(int baseId) {
-        return query("SELECT " + COLS + " FROM Questions " +
-                "WHERE base_id = ? ORDER BY version", baseId);
+        try (Session session = HibernateUtil.getSessionFactory().openSession()) {
+            return session.createQuery(
+                            "FROM Question WHERE baseId = :base ORDER BY version", Question.class)
+                    .setParameter("base", baseId)
+                    .list();
+        } catch (Exception e) {
+            System.err.println("[QuestionDAO] getHistory failed: " + e.getMessage());
+            return List.of();
+        }
     }
 
     // ===== ADD ============================================================
 
     /**
      * Inserts a brand-new question as version 1 and sets its version-family id
-     * ({@code base_id}) to its own generated id.
+     * ({@code base_id}) to its own generated id — one transaction, so a failure
+     * leaves no partial row.
      *
      * @return the same question with its new {@code id} and {@code baseId} filled in.
      */
     public Question add(Question q) {
-        String sql = "INSERT INTO Questions " +
-                "(course_id, question_text, answer_1, answer_2, answer_3, answer_4, " +
-                " correct_answer, image_path, topic, difficulty, image_data, version, is_current) " +
-                "VALUES (?,?,?,?,?,?,?,?,?,?,?,1,TRUE)";
-        try (Connection conn = DatabaseConfig.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
+        // NOT try-with-resources: the rollback must run BEFORE the session
+        // closes, otherwise the pooled connection is returned with the failed
+        // transaction still open and a later operation implicitly commits the
+        // half-done work (caught by QuestionDAOUpdateTest's rollback test).
+        Session session = HibernateUtil.getSessionFactory().openSession();
+        Transaction tx = null;
+        try {
+            tx = session.beginTransaction();
 
-            bindCommonFields(ps, q);
-            ps.setBytes(11, q.getImageData());
-            ps.executeUpdate();
+            q.setId(0);              // always a fresh row (IDENTITY-generated)
+            q.setVersion(1);
+            q.setCurrent(true);
+            session.persist(q);
+            session.flush();         // materialise the generated id
 
-            try (ResultSet keys = ps.getGeneratedKeys()) {
-                if (keys.next()) {
-                    int newId = keys.getInt(1);
-                    q.setId(newId);
-                    q.setBaseId(newId);
-                    q.setVersion(1);
-                    q.setCurrent(true);
-                    // The first version's family id is its own id.
-                    setBaseId(conn, newId, newId);
-                }
-            }
+            q.setBaseId(q.getId());  // the first version's family id is its own id
+            // (dirty-checking issues the UPDATE inside the same transaction)
+
+            writeImage(session, q.getId(), q.getImageData());
+            tx.commit();
             return q;
-        } catch (SQLException e) {
+        } catch (Exception e) {
             System.err.println("[QuestionDAO] add failed: " + e.getMessage());
+            rollback(tx);
             return null;
+        } finally {
+            session.close();
         }
     }
 
@@ -136,68 +151,54 @@ public class QuestionDAO implements QuestionSource {
      * inserted (same {@code base_id}, {@code version + 1}, {@code is_current = TRUE}).
      * The previous version stays in the bank, as the assignment requires.
      *
+     * <p>Illustration intent (see {@code Question#imageData}): path+bytes = new
+     * image · path only = keep the previous version's image · no path = no image.
+     *
      * @param q the edited question; must carry the {@code baseId} of the family.
      * @return the new current version (with its new id/version), or null on failure.
      */
     public Question update(Question q) {
-        Connection conn = null;
+        // Manual session lifecycle for the same rollback-before-close reason as add().
+        Session session = HibernateUtil.getSessionFactory().openSession();
+        Transaction tx = null;
         try {
-            conn = DatabaseConfig.getConnection();
-            conn.setAutoCommit(false);   // transaction: both steps succeed or neither
+            tx = session.beginTransaction();
 
-            // 0) resolve the illustration BEFORE retiring the old version:
-            //    path+bytes = new image · path only = keep previous · no path = none
+            // 0) resolve the illustration BEFORE retiring the old version
             byte[] imageData = q.getImageData();
             if (imageData == null && q.getImagePath() != null) {
-                imageData = readCurrentImage(conn, q.getBaseId());
+                imageData = readCurrentImage(session, q.getBaseId());
             }
 
             // 1) retire the current version
-            try (PreparedStatement ps = conn.prepareStatement(
-                    "UPDATE Questions SET is_current = FALSE WHERE base_id = ? AND is_current = TRUE")) {
-                ps.setInt(1, q.getBaseId());
-                ps.executeUpdate();
-            }
+            session.createMutationQuery(
+                            "UPDATE Question SET current = false WHERE baseId = :base AND current = true")
+                    .setParameter("base", q.getBaseId())
+                    .executeUpdate();
 
             // 2) find the next version number
-            int nextVersion = 1;
-            try (PreparedStatement ps = conn.prepareStatement(
-                    "SELECT COALESCE(MAX(version),0) + 1 AS nv FROM Questions WHERE base_id = ?")) {
-                ps.setInt(1, q.getBaseId());
-                try (ResultSet rs = ps.executeQuery()) {
-                    if (rs.next()) nextVersion = rs.getInt("nv");
-                }
-            }
+            Integer maxVersion = session.createQuery(
+                            "SELECT MAX(version) FROM Question WHERE baseId = :base", Integer.class)
+                    .setParameter("base", q.getBaseId())
+                    .uniqueResult();
+            int nextVersion = (maxVersion == null ? 0 : maxVersion) + 1;
 
             // 3) insert the new current version
-            String insert = "INSERT INTO Questions " +
-                    "(course_id, question_text, answer_1, answer_2, answer_3, answer_4, " +
-                    " correct_answer, image_path, topic, difficulty, image_data, base_id, version, is_current) " +
-                    "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,TRUE)";
-            int newId;
-            try (PreparedStatement ps = conn.prepareStatement(insert, Statement.RETURN_GENERATED_KEYS)) {
-                bindCommonFields(ps, q);
-                ps.setBytes(11, imageData);
-                ps.setInt(12, q.getBaseId());
-                ps.setInt(13, nextVersion);
-                ps.executeUpdate();
-                try (ResultSet keys = ps.getGeneratedKeys()) {
-                    keys.next();
-                    newId = keys.getInt(1);
-                }
-            }
-
-            conn.commit();
-            q.setId(newId);
+            q.setId(0);
             q.setVersion(nextVersion);
             q.setCurrent(true);
+            session.persist(q);
+            session.flush();
+
+            writeImage(session, q.getId(), imageData);
+            tx.commit();
             return q;
-        } catch (SQLException e) {
+        } catch (Exception e) {
             System.err.println("[QuestionDAO] update failed: " + e.getMessage());
-            rollback(conn);
+            rollback(tx);
             return null;
         } finally {
-            close(conn);
+            session.close();
         }
     }
 
@@ -209,18 +210,27 @@ public class QuestionDAO implements QuestionSource {
      * @return true if at least one row was removed.
      */
     public boolean delete(int baseId) {
-        try (Connection conn = DatabaseConfig.getConnection();
-             PreparedStatement ps = conn.prepareStatement(
-                     "DELETE FROM Questions WHERE base_id = ?")) {
-            ps.setInt(1, baseId);
-            return ps.executeUpdate() > 0;
-        } catch (SQLException e) {
+        // Manual session lifecycle for the same rollback-before-close reason as add().
+        Session session = HibernateUtil.getSessionFactory().openSession();
+        Transaction tx = null;
+        try {
+            tx = session.beginTransaction();
+            int removed = session.createMutationQuery(
+                            "DELETE FROM Question WHERE baseId = :base")
+                    .setParameter("base", baseId)
+                    .executeUpdate();
+            tx.commit();
+            return removed > 0;
+        } catch (Exception e) {
             System.err.println("[QuestionDAO] delete failed: " + e.getMessage());
+            rollback(tx);
             return false;
+        } finally {
+            session.close();
         }
     }
 
-    // ===== illustration (lazy) ===========================================
+    // ===== illustration (lazy, native SQL — image_data is unmapped) =======
 
     /**
      * The illustration bytes of ONE question row (any version), or null if it
@@ -230,94 +240,41 @@ public class QuestionDAO implements QuestionSource {
      */
     @Override
     public byte[] getImage(int questionId) {
-        try (Connection conn = DatabaseConfig.getConnection();
-             PreparedStatement ps = conn.prepareStatement(
-                     "SELECT image_data FROM Questions WHERE id = ?")) {
-            ps.setInt(1, questionId);
-            try (ResultSet rs = ps.executeQuery()) {
-                return rs.next() ? rs.getBytes(1) : null;
-            }
-        } catch (SQLException e) {
+        try (Session session = HibernateUtil.getSessionFactory().openSession()) {
+            return (byte[]) session.createNativeQuery(
+                            "SELECT image_data FROM Questions WHERE id = :id", byte[].class)
+                    .setParameter("id", questionId)
+                    .uniqueResult();
+        } catch (Exception e) {
             System.err.println("[QuestionDAO] getImage failed: " + e.getMessage());
             return null;
         }
     }
 
+    /** Stores the bytes for one row inside the caller's transaction (no-op for null). */
+    private void writeImage(Session session, int questionId, byte[] bytes) {
+        if (bytes == null) return;
+        session.createNativeMutationQuery(
+                        "UPDATE Questions SET image_data = :data WHERE id = :id")
+                .setParameter("data", bytes)
+                .setParameter("id", questionId)
+                .executeUpdate();
+    }
+
     /** The current version's image bytes for a family (used by the keep-image rule). */
-    private byte[] readCurrentImage(Connection conn, int baseId) throws SQLException {
-        try (PreparedStatement ps = conn.prepareStatement(
-                "SELECT image_data FROM Questions WHERE base_id = ? AND is_current = TRUE")) {
-            ps.setInt(1, baseId);
-            try (ResultSet rs = ps.executeQuery()) {
-                return rs.next() ? rs.getBytes(1) : null;
-            }
-        }
+    private byte[] readCurrentImage(Session session, int baseId) {
+        return (byte[]) session.createNativeQuery(
+                        "SELECT image_data FROM Questions WHERE base_id = :base AND is_current = TRUE",
+                        byte[].class)
+                .setParameter("base", baseId)
+                .uniqueResult();
     }
 
     // ===== helpers ========================================================
 
-    /** Binds the 10 shared question fields to positions 1..10 of a statement. */
-    private void bindCommonFields(PreparedStatement ps, Question q) throws SQLException {
-        ps.setInt(1, q.getCourseId());
-        ps.setString(2, q.getQuestionText());
-        ps.setString(3, q.getAnswer1());
-        ps.setString(4, q.getAnswer2());
-        ps.setString(5, q.getAnswer3());
-        ps.setString(6, q.getAnswer4());
-        ps.setInt(7, q.getCorrectAnswer());
-        ps.setString(8, q.getImagePath());
-        ps.setString(9, q.getTopic());
-        ps.setString(10, q.getDifficulty());
-    }
-
-    private void setBaseId(Connection conn, int id, int baseId) throws SQLException {
-        try (PreparedStatement ps = conn.prepareStatement(
-                "UPDATE Questions SET base_id = ? WHERE id = ?")) {
-            ps.setInt(1, baseId);
-            ps.setInt(2, id);
-            ps.executeUpdate();
+    private static void rollback(Transaction tx) {
+        if (tx != null) {
+            try { tx.rollback(); } catch (Exception ignored) { }
         }
-    }
-
-    private List<Question> query(String sql, int param) {
-        List<Question> list = new ArrayList<>();
-        try (Connection conn = DatabaseConfig.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            if (param >= 0) ps.setInt(1, param);
-            try (ResultSet rs = ps.executeQuery()) {
-                while (rs.next()) list.add(mapRow(rs));
-            }
-        } catch (SQLException e) {
-            System.err.println("[QuestionDAO] query failed: " + e.getMessage());
-        }
-        return list;
-    }
-
-    /** Builds a Question from the current row of a result set. */
-    private Question mapRow(ResultSet rs) throws SQLException {
-        Question q = new Question();
-        q.setId(rs.getInt("id"));
-        q.setCourseId(rs.getInt("course_id"));
-        q.setQuestionText(rs.getString("question_text"));
-        q.setAnswer1(rs.getString("answer_1"));
-        q.setAnswer2(rs.getString("answer_2"));
-        q.setAnswer3(rs.getString("answer_3"));
-        q.setAnswer4(rs.getString("answer_4"));
-        q.setCorrectAnswer(rs.getInt("correct_answer"));
-        q.setImagePath(rs.getString("image_path"));
-        q.setTopic(rs.getString("topic"));
-        q.setDifficulty(rs.getString("difficulty"));
-        q.setBaseId(rs.getInt("base_id"));
-        q.setVersion(rs.getInt("version"));
-        q.setCurrent(rs.getBoolean("is_current"));
-        return q;
-    }
-
-    private void rollback(Connection conn) {
-        if (conn != null) try { conn.rollback(); } catch (SQLException ignored) { }
-    }
-
-    private void close(Connection conn) {
-        if (conn != null) try { conn.setAutoCommit(true); conn.close(); } catch (SQLException ignored) { }
     }
 }

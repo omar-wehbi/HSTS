@@ -1,5 +1,13 @@
 package common.entities;
 
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.Table;
+import jakarta.persistence.Transient;
+
 import java.io.Serializable;
 
 /**
@@ -14,21 +22,47 @@ import java.io.Serializable;
  * between the JavaFX client and the server. It is shared, dumb data: the client
  * displays and edits it, but the server decides whether a change is valid and the
  * DAO is the only code that reads/writes it to MySQL.
+ *
+ * <p>JPA-mapped for the ORM data tier (Hibernate, server-side only; the client
+ * ignores the annotations). Two columns are deliberately <b>not</b> mapped —
+ * the same principle as {@link User}'s unmapped password:
+ * <ul>
+ *   <li>{@code image_data} — a LONGBLOB that must never ride along in list
+ *       queries (NFR 18); the DAO reads/writes it with targeted native SQL and
+ *       the {@link #imageData} field is {@code @Transient} wire-luggage;</li>
+ *   <li>{@code created_at} — filled by its database default.</li>
+ * </ul>
  */
+@Entity
+@Table(name = "Questions")
 public class Question implements Serializable {
 
     /** Keep stable so client and server stay wire-compatible. */
     private static final long serialVersionUID = 1L;
 
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private int    id;
+
+    @Column(name = "course_id", nullable = false)
     private int    courseId;
 
+    @Column(name = "question_text", nullable = false)
     private String questionText;
+
+    @Column(name = "answer_1", nullable = false)
     private String answer1;
+    @Column(name = "answer_2", nullable = false)
     private String answer2;
+    @Column(name = "answer_3", nullable = false)
     private String answer3;
+    @Column(name = "answer_4", nullable = false)
     private String answer4;
+
+    @Column(name = "correct_answer", nullable = false)
     private int    correctAnswer;   // 1..4
+
+    @Column(name = "image_path")
     private String imagePath;       // optional; original illustration file name; null = no image
 
     /**
@@ -38,15 +72,24 @@ public class Question implements Serializable {
      * populated here when uploading a new/changed image with ADD/UPDATE.
      * Keep-image rule on update: {@code imagePath != null && imageData == null}
      * means "keep the previous version's image".
+     * {@code @Transient}: persisted via targeted native SQL, never by entity
+     * mapping, so ORM list queries can never accidentally haul BLOBs.
      */
+    @Transient
     private byte[] imageData;
 
+    @Column(name = "topic")
     private String topic;           // optional
+
+    @Column(name = "difficulty")
     private String difficulty;      // "EASY" | "MEDIUM" | "HARD" | null
 
     // ----- versioning -----
+    @Column(name = "base_id")
     private int     baseId;         // family id shared by all versions of this question
+    @Column(name = "version", nullable = false)
     private int     version;        // 1, 2, 3 ...
+    @Column(name = "is_current", nullable = false)
     private boolean current;        // true = latest version
 
     public Question() {
