@@ -81,6 +81,17 @@ public class QuestionsView extends AbstractScreenUI {
 
     // ===== actions ========================================================
 
+    /** Navigates back to the role-based home menu (or to login if signed out). */
+    @FXML
+    private void onBackToMenu() {
+        common.entities.User user = ScreenManager.getInstance().getCurrentUser();
+        if (user != null) {
+            ScreenManager.getInstance().setScreen(new HomeView(user));
+        } else {
+            ScreenManager.getInstance().setScreen(new LoginView());
+        }
+    }
+
     @FXML
     private void onNew() {
         startNew();

@@ -1,5 +1,7 @@
 package client.network;
 
+import client.events.ClientEventBus;
+import client.events.ServerMessageEvent;
 import common.network.Message;
 import javafx.application.Platform;
 import ocsf.client.AbstractClient;
@@ -63,6 +65,12 @@ public class HSTSClient extends AbstractClient implements IClientConnection {
 
         // CRITICAL: route onto the JavaFX Application Thread before any UI work.
         Platform.runLater(() -> {
+            // Pub/Sub: publish to the client event bus; screens subscribe with
+            // @Subscribe and receive the event already on the FX thread.
+            ClientEventBus.post(new ServerMessageEvent(response));
+
+            // Legacy direct callback — kept so existing screens work unchanged
+            // while the team migrates to EventBus subscriptions.
             if (serverMessageHandler != null) {
                 serverMessageHandler.accept(response);
             }

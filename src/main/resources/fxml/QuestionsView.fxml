@@ -30,6 +30,7 @@
             <Label styleClass="header-subtitle" text="High School Test System — manage questions"/>
         </VBox>
         <Region HBox.hgrow="ALWAYS"/>
+        <Button onAction="#onBackToMenu" styleClass="header-button" text="← Menu"/>
         <HBox styleClass="status-pill">
             <Circle radius="5.0" styleClass="status-dot"/>
             <Label text="Connected"/>

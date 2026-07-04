@@ -1,10 +1,12 @@
 package client.ui;
 
+import client.events.ServerMessageEvent;
 import common.entities.User;
 import common.network.Credentials;
 import common.network.Message;
 import common.network.Message.Command;
 import javafx.fxml.FXML;
+import org.greenrobot.eventbus.Subscribe;
 import javafx.fxml.FXMLLoader;
 import javafx.scene.Node;
 import javafx.scene.Parent;
@@ -32,7 +34,9 @@ public class LoginView extends AbstractScreenUI {
 
     @Override
     public Parent render() {
-        client().setServerMessageHandler(this::onServerMessage);
+        // No setServerMessageHandler here: this screen receives server responses
+        // via the EventBus (see onServerMessage below) — ScreenManager registers
+        // and unregisters it automatically on navigation.
         FXMLLoader loader = new FXMLLoader(getClass().getResource(FXML_PATH));
         loader.setController(this);
         try {
@@ -61,12 +65,21 @@ public class LoginView extends AbstractScreenUI {
         }
     }
 
-    /** Server responses (already on the FX thread). */
-    private void onServerMessage(Message msg) {
+    /**
+     * Pub/Sub subscription (Lab 5 pattern): the network adapter publishes every
+     * server {@link Message} as a {@link ServerMessageEvent}; this screen is
+     * registered by {@code ScreenManager} while it is shown. Events arrive
+     * already on the JavaFX Application Thread.
+     */
+    @Subscribe
+    public void onServerMessage(ServerMessageEvent event) {
+        Message msg = event.getMessage();
         switch (msg.getCommand()) {
             case SUCCESS:
                 if (msg.getPayload() instanceof User) {
-                    ScreenManager.getInstance().setScreen(new HomeView((User) msg.getPayload()));
+                    User user = (User) msg.getPayload();
+                    ScreenManager.getInstance().setCurrentUser(user);
+                    ScreenManager.getInstance().setScreen(new HomeView(user));
                 }
                 break;
             case ERROR:

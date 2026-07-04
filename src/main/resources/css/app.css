@@ -53,6 +53,19 @@
     -fx-font-weight: bold;
 }
 
+/* Buttons that sit ON the indigo header bar (e.g. "← Menu"): same translucent
+   white pill look as the status pill / count badge beside them. */
+.header-button {
+    -fx-background-color: rgba(255, 255, 255, 0.18);
+    -fx-background-radius: 20;
+    -fx-padding: 6 14 6 14;
+    -fx-text-fill: white;
+    -fx-font-size: 12px;
+    -fx-font-weight: bold;
+    -fx-cursor: hand;
+}
+.header-button:hover { -fx-background-color: rgba(255, 255, 255, 0.30); }
+
 /* ---------------------------------------------------------------------
    Body & cards
    --------------------------------------------------------------------- */

@@ -41,6 +41,24 @@
             <version>${mysql.version}</version>
         </dependency>
 
+        <!-- GreenRobot EventBus (plain-Java artifact) — client-side Pub/Sub:
+             the network adapter publishes incoming server messages, UI screens
+             subscribe with @Subscribe (Lab 5 pattern). -->
+        <dependency>
+            <groupId>org.greenrobot</groupId>
+            <artifactId>eventbus-java</artifactId>
+            <version>3.3.1</version>
+        </dependency>
+
+        <!-- Hibernate ORM (Data tier, server-side only — excluded from the
+             client JAR). Entities are mapped with JPA annotations; the
+             SessionFactory is built by server.db.HibernateUtil. -->
+        <dependency>
+            <groupId>org.hibernate.orm</groupId>
+            <artifactId>hibernate-core</artifactId>
+            <version>6.6.4.Final</version>
+        </dependency>
+
         <!-- OCSF networking is now native to the source tree
              (src/main/java/ocsf/**) — no external dependency. -->
 
@@ -230,6 +248,22 @@
                             <artifactSet>
                                 <excludes>
                                     <exclude>com.mysql:mysql-connector-j</exclude>
+                                    <!-- Hibernate ORM + its transitive deps are server-side
+                                         only. jakarta.persistence-api is KEPT: the shared
+                                         entities carry JPA annotations. -->
+                                    <exclude>org.hibernate*:*</exclude>
+                                    <exclude>net.bytebuddy:*</exclude>
+                                    <exclude>org.jboss*:*</exclude>
+                                    <exclude>com.fasterxml:classmate</exclude>
+                                    <exclude>org.glassfish*:*</exclude>
+                                    <exclude>org.antlr:*</exclude>
+                                    <exclude>io.smallrye:*</exclude>
+                                    <exclude>jakarta.transaction:*</exclude>
+                                    <exclude>jakarta.xml.bind:*</exclude>
+                                    <exclude>jakarta.inject:*</exclude>
+                                    <exclude>jakarta.activation:*</exclude>
+                                    <exclude>org.eclipse.angus:*</exclude>
+                                    <exclude>com.sun.istack:*</exclude>
                                 </excludes>
                             </artifactSet>
                             <filters>

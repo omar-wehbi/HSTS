@@ -31,6 +31,10 @@ public class HSTSServer extends AbstractServer {
 
     public HSTSServer(int port) {
         super(port);
+        // Fail fast: bring the ORM data tier up at construction, not at the first
+        // login. A misconfigured database is discovered at server start, and the
+        // first user never pays the SessionFactory warm-up cost.
+        server.db.HibernateUtil.getSessionFactory();
     }
 
     @Override

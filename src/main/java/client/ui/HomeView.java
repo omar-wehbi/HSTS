@@ -34,9 +34,8 @@ public class HomeView extends AbstractScreenUI {
 
     @Override
     public Parent render() {
-        // This screen doesn't wait on the server; ignore stray messages.
-        client().setServerMessageHandler(m -> { });
-
+        // This screen declares no @Subscribe methods, so it simply receives no
+        // server events (ScreenManager cleared the previous screen's handler).
         Label welcome = new Label("Welcome, " + user.getDisplayName());
         welcome.getStyleClass().add("header-title");
         Label roleLabel = new Label("Signed in as " + user.getRole());
@@ -116,6 +115,7 @@ public class HomeView extends AbstractScreenUI {
         } catch (IOException ignored) {
             // Even if the message fails, return to the login screen.
         }
+        ScreenManager.getInstance().setCurrentUser(null);
         ScreenManager.getInstance().setScreen(new LoginView());
     }
 }
