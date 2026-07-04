@@ -122,6 +122,13 @@ VALUES
 
 UPDATE Questions SET base_id = id WHERE base_id IS NULL;
 
+-- ---- Scenario 2 note: one question carries a real ILLUSTRATION ----
+-- (tiny generated PNG; proves add-with-image + lazy GET_QUESTION_IMAGE)
+UPDATE Questions
+   SET image_path = 'fifo-queue.png',
+       image_data = 0x89504E470D0A1A0A0000000D49484452000000180000001808020000006F15AAAF0000002E4944415478DA63F8FAFD175510C34830482EE00410A1494304E1085376D4A05183460D1A3588FA068D96D9B81000E96CADCC24DAE8B30000000049454E44AE426082
+ WHERE id = 2;
+
 -- ---- Scenario 2.2: versioning demo — question 1 edited; v1 KEPT, v2 current ----
 UPDATE Questions SET is_current = FALSE WHERE id = 1;
 INSERT INTO Questions

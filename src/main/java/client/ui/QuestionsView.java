@@ -31,6 +31,9 @@ public class QuestionsView extends AbstractScreenUI {
 
     private static final String FXML_PATH = "/fxml/QuestionsView.fxml";
 
+    /** Illustration uploads larger than this are rejected client-side (NFR 18). */
+    private static final int MAX_IMAGE_BYTES = 2 * 1024 * 1024;
+
     @FXML private ListView<Question> listView;
     @FXML private ComboBox<Course>   courseBox;
     @FXML private TextArea           questionField;
@@ -38,9 +41,11 @@ public class QuestionsView extends AbstractScreenUI {
     @FXML private ComboBox<Integer>  correctBox;
     @FXML private ComboBox<String>   difficultyBox;
     @FXML private TextField          topicField;
-    @FXML private Button             newButton, deleteButton, saveButton;
-    @FXML private Label              countBadge, idBadge, editorTitle, hintLabel, statusLabel, savedLabel;
+    @FXML private Button             newButton, deleteButton, saveButton, imageButton, imageClearButton;
+    @FXML private Label              countBadge, idBadge, editorTitle, hintLabel, statusLabel, savedLabel,
+                                     imageNameLabel;
     @FXML private StackPane          logoBox;
+    @FXML private javafx.scene.image.ImageView imagePreview;
 
     /** The question currently being edited (null = adding a new one). */
     private Question selected;
@@ -48,6 +53,16 @@ public class QuestionsView extends AbstractScreenUI {
     private boolean awaitingSave = false;
     /** True when the pending operation was an Add (so we reset the form on success). */
     private boolean pendingWasAdd = false;
+
+    // ----- illustration state (scenario 2: a question includes an illustration) -----
+    /** Newly chosen image bytes; null = nothing chosen in this edit session. */
+    private byte[] pendingImageBytes;
+    /** File name of the newly chosen image; null = nothing chosen. */
+    private String pendingImageName;
+    /** True while editing a question whose stored image should be kept as-is. */
+    private boolean keepExistingImage = false;
+    /** True while a GET_QUESTION_IMAGE we sent is awaiting its reply. */
+    private boolean awaitingImage = false;
 
     @Override
     public Parent render() {
@@ -97,6 +112,46 @@ public class QuestionsView extends AbstractScreenUI {
         startNew();
     }
 
+    /** Picks an illustration file, size-checked, and previews it immediately. */
+    @FXML
+    private void onChooseImage() {
+        javafx.stage.FileChooser chooser = new javafx.stage.FileChooser();
+        chooser.setTitle("Choose an illustration");
+        chooser.getExtensionFilters().add(new javafx.stage.FileChooser.ExtensionFilter(
+                "Images (png, jpg, gif)", "*.png", "*.jpg", "*.jpeg", "*.gif"));
+        java.io.File file = chooser.showOpenDialog(imageButton.getScene().getWindow());
+        if (file == null) return;
+
+        if (file.length() > MAX_IMAGE_BYTES) {
+            alert("Illustration too large: " + (file.length() / 1024) + " KB (max "
+                    + (MAX_IMAGE_BYTES / 1024) + " KB).");
+            return;
+        }
+        try {
+            pendingImageBytes = java.nio.file.Files.readAllBytes(file.toPath());
+        } catch (IOException e) {
+            alert("Could not read the file: " + e.getMessage());
+            return;
+        }
+        pendingImageName = file.getName();
+        keepExistingImage = false;
+        imageNameLabel.setText(pendingImageName);
+        showPreview(pendingImageBytes);
+        setNodeShown(imageClearButton, true);
+        statusLabel.setText("Illustration selected — will be saved with the question.");
+    }
+
+    /** Removes the illustration (both a fresh pick and a stored one). */
+    @FXML
+    private void onClearImage() {
+        pendingImageBytes = null;
+        pendingImageName = null;
+        keepExistingImage = false;
+        imageNameLabel.setText("No illustration");
+        hidePreview();
+        setNodeShown(imageClearButton, false);
+    }
+
     @FXML
     private void onSave() {
         String error = validate();
@@ -136,7 +191,16 @@ public class QuestionsView extends AbstractScreenUI {
         switch (msg.getCommand()) {
             case SUCCESS:
                 Object payload = msg.getPayload();
-                if (payload instanceof List) {
+                if (awaitingImage && (payload instanceof byte[] || payload == null)) {
+                    // Reply to our lazy GET_QUESTION_IMAGE (NFR 18).
+                    awaitingImage = false;
+                    if (payload != null) {
+                        showPreview((byte[]) payload);
+                        statusLabel.setText("Illustration loaded.");
+                    } else {
+                        hidePreview();
+                    }
+                } else if (payload instanceof List) {
                     List<?> li = (List<?>) payload;
                     if (!li.isEmpty() && li.get(0) instanceof Course) {
                         courseBox.setItems(FXCollections.observableArrayList((List<Course>) li));
@@ -209,6 +273,23 @@ public class QuestionsView extends AbstractScreenUI {
         topicField.setText(q.getTopic());
         difficultyBox.setValue(q.getDifficulty());
 
+        // Illustration: lists carry only the name; fetch the bytes lazily.
+        pendingImageBytes = null;
+        pendingImageName = null;
+        hidePreview();
+        if (q.getImagePath() != null) {
+            keepExistingImage = true;
+            imageNameLabel.setText(q.getImagePath() + " (stored)");
+            setNodeShown(imageClearButton, true);
+            statusLabel.setText("Loading illustration…");
+            awaitingImage = true;
+            send(new Message(Command.GET_QUESTION_IMAGE, q.getId()));
+        } else {
+            keepExistingImage = false;
+            imageNameLabel.setText("No illustration");
+            setNodeShown(imageClearButton, false);
+        }
+
         deleteButton.setDisable(false);
         saveButton.setText("Save (new version)");
         editorTitle.setText("Edit question");
@@ -236,7 +317,7 @@ public class QuestionsView extends AbstractScreenUI {
 
     private Question buildFromForm() {
         Course c = courseBox.getValue();
-        return new Question(
+        Question q = new Question(
                 c.getId(),
                 questionField.getText().trim(),
                 a1.getText().trim(), a2.getText().trim(), a3.getText().trim(), a4.getText().trim(),
@@ -244,6 +325,17 @@ public class QuestionsView extends AbstractScreenUI {
                 null,
                 emptyToNull(topicField.getText()),
                 difficultyBox.getValue());
+        // Illustration intent (understood by QuestionDAO.update):
+        //   new pick  -> path + bytes        (replace / attach)
+        //   untouched -> stored path, no bytes (server keeps the old image)
+        //   removed   -> no path              (no image)
+        if (pendingImageName != null) {
+            q.setImagePath(pendingImageName);
+            q.setImageData(pendingImageBytes);
+        } else if (keepExistingImage && selected != null) {
+            q.setImagePath(selected.getImagePath());
+        }
+        return q;
     }
 
     private String validate() {
@@ -262,6 +354,19 @@ public class QuestionsView extends AbstractScreenUI {
         difficultyBox.setValue(null);
         if (courseBox != null && !courseBox.getItems().isEmpty())
             courseBox.setValue(courseBox.getItems().get(0));
+        onClearImage();
+    }
+
+    // ----- illustration preview helpers ----------------------------------
+
+    private void showPreview(byte[] bytes) {
+        imagePreview.setImage(new javafx.scene.image.Image(new java.io.ByteArrayInputStream(bytes)));
+        setNodeShown(imagePreview, true);
+    }
+
+    private void hidePreview() {
+        imagePreview.setImage(null);
+        setNodeShown(imagePreview, false);
     }
 
     private void selectCourse(int courseId) {
@@ -314,7 +419,8 @@ public class QuestionsView extends AbstractScreenUI {
             if (empty || q == null) { setGraphic(null); return; }
             title.setText(displayIdOf(q) + "   " + q.getQuestionText());
             String diff = q.getDifficulty() == null ? "" : " · " + q.getDifficulty();
-            sub.setText("v" + q.getVersion() + " · correct: answer " + q.getCorrectAnswer() + diff);
+            String img = q.getImagePath() == null ? "" : " · 🖼 illustrated";
+            sub.setText("v" + q.getVersion() + " · correct: answer " + q.getCorrectAnswer() + diff + img);
             setGraphic(box);
         }
     }

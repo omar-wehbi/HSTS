@@ -7,6 +7,7 @@
 <?import javafx.scene.control.ScrollPane?>
 <?import javafx.scene.control.TextArea?>
 <?import javafx.scene.control.TextField?>
+<?import javafx.scene.image.ImageView?>
 <?import javafx.scene.layout.HBox?>
 <?import javafx.scene.layout.Region?>
 <?import javafx.scene.layout.StackPane?>
@@ -82,6 +83,17 @@
                             <TextField fx:id="topicField" promptText="e.g. Sorting"/>
                         </VBox>
                     </HBox>
+
+                    <Label styleClass="field-label" text="ILLUSTRATION (optional)"/>
+                    <HBox alignment="CENTER_LEFT" spacing="8.0">
+                        <Button fx:id="imageButton" onAction="#onChooseImage"
+                                styleClass="secondary-button" text="Choose image…"/>
+                        <Label fx:id="imageNameLabel" text="No illustration"/>
+                        <Button fx:id="imageClearButton" onAction="#onClearImage" managed="false"
+                                styleClass="secondary-button" text="Remove" visible="false"/>
+                    </HBox>
+                    <ImageView fx:id="imagePreview" fitWidth="240.0" managed="false"
+                               preserveRatio="true" visible="false"/>
                 </VBox>
             </ScrollPane>
 

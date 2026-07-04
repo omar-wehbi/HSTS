@@ -33,7 +33,7 @@ here in the same commit. The course grades reuse & design patterns explicitly
 | **Strategy (validation)** | `server/QuestionValidator` — stateless rule set returning error-or-null | Same rules reused by ADD and UPDATE paths (and by the future bot module when it references bank questions); tested as a pure unit. |
 | **Interface Segregation / Dependency Inversion** | `server/db/QuestionSource` *(landed — Phase 3)*: read-only view of `QuestionDAO` (`getByCourse`, `getByCourseFiltered`, `getHistory`) | Person 3's exam auto-builder and the future study bot (scenarios 13–14; R-047 lists *bank questions* as bot knowledge sources) consume the interface, not the DAO — they can develop against an in-memory fake today and get the real DAO at integration with zero rework. |
 | **DTO** | `common/network/QuestionFilter` *(landed — Phase 3)*: courseId + optional topic/difficulty, `GET_QUESTIONS_FILTERED` payload | Serializable filter criteria for `GET_QUESTIONS_FILTERED`; the same DTO serves exam auto-build pools and bot source selection. |
-| **Lazy loading (protocol level)** | `GET_QUESTION_IMAGE` (fetch one illustration on demand; list replies carry metadata only) | Keeps bank-list traffic small (NFR 18 — efficiency, no wasteful transfers); the UI shows a progress indicator while the image loads (NFR 21). |
+| **Lazy loading (protocol level)** | `GET_QUESTION_IMAGE` *(landed — Phase 4)*: fetch one illustration on demand; list replies carry only `imagePath` | Keeps bank-list traffic small (NFR 18 — efficiency, no wasteful transfers); the UI shows a progress indicator while the image loads (NFR 21). |
 
 ## Recommended (not yet built) — reserved designs
 
