@@ -24,6 +24,8 @@ import static org.junit.jupiter.api.Assertions.assertNull;
  * End-to-end test for {@code GET_QUESTION_IMAGE} (Person 2, Phase 4):
  * illustration bytes survive the OCSF round-trip, and questions without an
  * image answer with a null payload rather than an error.
+ * Since Phase 5 every bank command requires a logged-in caller, so each test
+ * logs in first (seed account {@code teacher}/{@code 1234}).
  */
 class QuestionImageIntegrationTest {
 
@@ -74,10 +76,18 @@ class QuestionImageIntegrationTest {
         }
     }
 
+    /** Phase 5 security: bank commands need a session — log the teacher in. */
+    private static void login(TestClient c) throws Exception {
+        Message r = c.call(new Message(Command.LOGIN,
+                new common.network.Credentials("teacher", "1234")));
+        assertEquals(Command.SUCCESS, r.getCommand(), "seed teacher must be able to log in");
+    }
+
     @Test
     void imageBytesSurviveTheWire() throws Exception {
         TestClient c = new TestClient();
         c.openConnection();
+        login(c);
         Message r = c.call(new Message(Command.GET_QUESTION_IMAGE, illustratedId));
         assertEquals(Command.SUCCESS, r.getCommand());
         assertArrayEquals(PNG, (byte[]) r.getPayload());
@@ -88,6 +98,7 @@ class QuestionImageIntegrationTest {
     void questionWithoutImageAnswersNullNotError() throws Exception {
         TestClient c = new TestClient();
         c.openConnection();
+        login(c);
         Message r = c.call(new Message(Command.GET_QUESTION_IMAGE, plainId));
         assertEquals(Command.SUCCESS, r.getCommand());
         assertNull(r.getPayload());
@@ -98,6 +109,7 @@ class QuestionImageIntegrationTest {
     void wrongPayloadTypeGetsCleanError() throws Exception {
         TestClient c = new TestClient();
         c.openConnection();
+        login(c);
         Message r = c.call(new Message(Command.GET_QUESTION_IMAGE, "not-an-id"));
         assertEquals(Command.ERROR, r.getCommand());
         c.closeConnection();

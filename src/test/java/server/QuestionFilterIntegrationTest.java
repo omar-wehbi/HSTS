@@ -25,8 +25,8 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
  * real {@link HSTSServer}, real OCSF client, real MySQL — the same wire path
  * Person 3's exam builder will use for its question pools.
  *
- * <p>Note: question commands carry no authorization guard yet; when Phase 5
- * adds role guards this test gains a LOGIN step.
+ * <p>Since Phase 5 every bank command requires a logged-in caller, so each
+ * test logs in first (seed account {@code teacher}/{@code 1234}).
  */
 class QuestionFilterIntegrationTest {
 
@@ -76,10 +76,18 @@ class QuestionFilterIntegrationTest {
         }
     }
 
+    /** Phase 5 security: bank commands need a session — log the teacher in. */
+    private static void login(TestClient c) throws Exception {
+        Message r = c.call(new Message(Command.LOGIN,
+                new common.network.Credentials("teacher", "1234")));
+        assertEquals(Command.SUCCESS, r.getCommand(), "seed teacher must be able to log in");
+    }
+
     @Test
     void filteredPoolTravelsTheFullWirePath() throws Exception {
         TestClient c = new TestClient();
         c.openConnection();
+        login(c);
         Message r = c.call(new Message(Command.GET_QUESTIONS_FILTERED,
                 new QuestionFilter(QuestionBankTestFixture.COURSE_ALGORITHMS, "Algebra", "EASY")));
         assertEquals(Command.SUCCESS, r.getCommand());
@@ -95,8 +103,21 @@ class QuestionFilterIntegrationTest {
     void wrongPayloadTypeGetsCleanError() throws Exception {
         TestClient c = new TestClient();
         c.openConnection();
+        login(c);
         Message r = c.call(new Message(Command.GET_QUESTIONS_FILTERED, "not-a-filter"));
         assertEquals(Command.ERROR, r.getCommand());
+        c.closeConnection();
+    }
+
+    @Test
+    void withoutLoginEveryBankCommandIsRejected() throws Exception {
+        // Phase 5 (R-063): an anonymous socket can neither read nor mutate.
+        TestClient c = new TestClient();
+        c.openConnection();
+        assertEquals(Command.ERROR, c.call(new Message(Command.GET_QUESTIONS)).getCommand());
+        assertEquals(Command.ERROR, c.call(new Message(Command.GET_QUESTIONS_FILTERED,
+                new QuestionFilter(1, null, null))).getCommand());
+        assertEquals(Command.ERROR, c.call(new Message(Command.DELETE_QUESTION, 1)).getCommand());
         c.closeConnection();
     }
 }

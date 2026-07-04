@@ -1,19 +1,15 @@
 package server;
 
-import common.entities.Question;
 import common.entities.User;
 import common.network.Credentials;
 import common.network.Message;
 import common.network.Message.Command;
-import common.network.QuestionFilter;
 import ocsf.server.AbstractServer;
 import ocsf.server.ConnectionToClient;
 import server.db.CourseDAO;
 import server.db.QuestionDAO;
 import server.db.UserDAO;
 
-import java.io.Serializable;
-import java.util.List;
 
 /**
  * The HSTS Fat Server (Logic tier) — the secure gatekeeper.
@@ -25,10 +21,12 @@ import java.util.List;
  */
 public class HSTSServer extends AbstractServer {
 
-    private final QuestionDAO    questionDAO = new QuestionDAO();
-    private final CourseDAO      courseDAO   = new CourseDAO();
-    private final UserDAO        userDAO     = new UserDAO();
-    private final SessionManager sessions    = new SessionManager();
+    private final QuestionDAO     questionDAO = new QuestionDAO();
+    private final CourseDAO       courseDAO   = new CourseDAO();
+    private final UserDAO         userDAO     = new UserDAO();
+    private final SessionManager  sessions    = new SessionManager();
+    /** Facade holding all question-bank rules (auth + validation), unit-tested with mocks. */
+    private final QuestionService questions   = new QuestionService(questionDAO, courseDAO);
 
     public HSTSServer(int port) {
         super(port);
@@ -49,6 +47,10 @@ public class HSTSServer extends AbstractServer {
 
         Message request = (Message) msg;
         try {
+            // Who is asking? Null until LOGIN succeeds — QuestionService rejects
+            // anonymous callers for every bank command (Phase 5 security).
+            User caller = sessions.getUser(client);
+
             switch (request.getCommand()) {
                 case LOGIN:
                     handleLogin(request, client);
@@ -61,33 +63,31 @@ public class HSTSServer extends AbstractServer {
                     safeSend(client, new Message(Command.SUCCESS, sessions.getUser(client)));
                     break;
                 case GET_COURSES:
-                    safeSend(client, new Message(Command.SUCCESS, (Serializable) courseDAO.getAll()));
+                    safeSend(client, questions.getCourses(caller));
                     break;
                 case GET_QUESTIONS:
-                    sendBank(client);
+                    safeSend(client, questions.getBank(caller));
                     break;
                 case GET_QUESTIONS_BY_COURSE:
-                    safeSend(client, new Message(Command.SUCCESS,
-                            (Serializable) questionDAO.getByCourse((Integer) request.getPayload())));
+                    safeSend(client, questions.getByCourse(caller, request.getPayload()));
                     break;
                 case GET_QUESTIONS_FILTERED:
-                    handleFilteredQuery(request, client);
+                    safeSend(client, questions.getFiltered(caller, request.getPayload()));
                     break;
                 case GET_QUESTION_HISTORY:
-                    safeSend(client, new Message(Command.SUCCESS,
-                            (Serializable) questionDAO.getHistory((Integer) request.getPayload())));
+                    safeSend(client, questions.getHistory(caller, request.getPayload()));
                     break;
                 case GET_QUESTION_IMAGE:
-                    handleGetImage(request, client);
+                    safeSend(client, questions.getImage(caller, request.getPayload()));
                     break;
                 case ADD_QUESTION:
-                    handleAdd(request, client);
+                    safeSend(client, questions.add(caller, request.getPayload()));
                     break;
                 case UPDATE_QUESTION:
-                    handleUpdate(request, client);
+                    safeSend(client, questions.update(caller, request.getPayload()));
                     break;
                 case DELETE_QUESTION:
-                    handleDelete(request, client);
+                    safeSend(client, questions.delete(caller, request.getPayload()));
                     break;
                 default:
                     safeSend(client, new Message(Command.ERROR,
@@ -121,72 +121,6 @@ public class HSTSServer extends AbstractServer {
         }
         log("login: " + user.getUsername() + " (" + user.getRole() + ")");
         safeSend(client, new Message(Command.SUCCESS, user));
-    }
-
-    /**
-     * Question pool narrowed by topic/difficulty — used by the bank UI's filters
-     * and by exam auto-build (scenario 3.4); see {@code QuestionFilter}.
-     */
-    private void handleFilteredQuery(Message request, ConnectionToClient client) {
-        if (!(request.getPayload() instanceof QuestionFilter)) {
-            safeSend(client, new Message(Command.ERROR,
-                    "GET_QUESTIONS_FILTERED requires a QuestionFilter payload."));
-            return;
-        }
-        QuestionFilter f = (QuestionFilter) request.getPayload();
-        safeSend(client, new Message(Command.SUCCESS, (Serializable)
-                questionDAO.getByCourseFiltered(f.getCourseId(), f.getTopic(), f.getDifficulty())));
-    }
-
-    /**
-     * Lazy illustration fetch (NFR 18): bank lists never carry image bytes;
-     * a client asks for one question's image only when it displays it.
-     */
-    private void handleGetImage(Message request, ConnectionToClient client) {
-        if (!(request.getPayload() instanceof Integer)) {
-            safeSend(client, new Message(Command.ERROR,
-                    "GET_QUESTION_IMAGE requires a question id (Integer)."));
-            return;
-        }
-        safeSend(client, new Message(Command.SUCCESS,
-                questionDAO.getImage((Integer) request.getPayload())));
-    }
-
-    private void handleAdd(Message request, ConnectionToClient client) {
-        if (!(request.getPayload() instanceof Question)) {
-            safeSend(client, new Message(Command.ERROR, "ADD_QUESTION requires a Question payload."));
-            return;
-        }
-        Question saved = questionDAO.add((Question) request.getPayload());
-        if (saved != null) sendBank(client);
-        else safeSend(client, new Message(Command.ERROR, "Add failed."));
-    }
-
-    private void handleUpdate(Message request, ConnectionToClient client) {
-        if (!(request.getPayload() instanceof Question)) {
-            safeSend(client, new Message(Command.ERROR, "UPDATE_QUESTION requires a Question payload."));
-            return;
-        }
-        Question updated = questionDAO.update((Question) request.getPayload());
-        if (updated != null) sendBank(client);
-        else safeSend(client, new Message(Command.ERROR, "Update failed."));
-    }
-
-    private void handleDelete(Message request, ConnectionToClient client) {
-        if (!(request.getPayload() instanceof Integer)) {
-            safeSend(client, new Message(Command.ERROR, "DELETE_QUESTION requires a baseId (Integer)."));
-            return;
-        }
-        boolean ok = questionDAO.delete((Integer) request.getPayload());
-        if (ok) sendBank(client);
-        else safeSend(client, new Message(Command.ERROR, "Delete failed."));
-    }
-
-    /** Replies with the refreshed current question bank. */
-    private void sendBank(ConnectionToClient client) {
-        List<Question> bank = questionDAO.getAllCurrent();
-        log("returning bank: " + bank.size() + " questions");
-        safeSend(client, new Message(Command.SUCCESS, (Serializable) bank));
     }
 
     // ===== OCSF lifecycle hooks ===========================================
