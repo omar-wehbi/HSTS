@@ -28,6 +28,7 @@ here in the same commit. The course grades reuse & design patterns explicitly
 
 | Pattern | Where (planned) | Why |
 |---|---|---|
+| **Value Object (validated config)** | `server/config/DbSettings` *(landed — Phase 0.5)* | Immutable, validated-at-construction connection profile. Invalid settings are impossible to construct, and JDBC + Hibernate both build from the same instance, so the whole Data tier always points at one database. Resolution is a layered per-key fallback — dialog → `hsts.db.*` system properties → `server.properties` → defaults — with the pure merge function (`ServerConfig.resolve`) unit-tested in isolation. |
 | **Facade (service extraction)** | `server/QuestionService` in front of the `HSTSServer` switch | Handlers become unit-testable with Mockito (mock `SessionManager` + DAO) without opening a socket; keeps the OCSF class thin. |
 | **Strategy (validation)** | `server/QuestionValidator` — stateless rule set returning error-or-null | Same rules reused by ADD and UPDATE paths (and by the future bot module when it references bank questions); tested as a pure unit. |
 | **Interface Segregation / Dependency Inversion** | `server/db/QuestionSource` (read-only view of `QuestionDAO`: `getByCourse`, `getByCourseFiltered`, `getHistory`) | Person 3's exam auto-builder and the future study bot (scenarios 13–14; R-047 lists *bank questions* as bot knowledge sources) consume the interface, not the DAO — they can develop against an in-memory fake today and get the real DAO at integration with zero rework. |
