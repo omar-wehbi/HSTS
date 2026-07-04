@@ -49,6 +49,7 @@ CREATE TABLE IF NOT EXISTS Questions (
     answer_4       TEXT         NOT NULL,
     correct_answer TINYINT      NOT NULL,
     image_path     VARCHAR(512) NULL,
+    image_data     LONGBLOB     NULL,
     topic          VARCHAR(255) NULL,
     difficulty     ENUM('EASY','MEDIUM','HARD') NULL,
     base_id        INT          NULL,

@@ -101,12 +101,13 @@ public class QuestionDAO implements QuestionSource {
     public Question add(Question q) {
         String sql = "INSERT INTO Questions " +
                 "(course_id, question_text, answer_1, answer_2, answer_3, answer_4, " +
-                " correct_answer, image_path, topic, difficulty, version, is_current) " +
-                "VALUES (?,?,?,?,?,?,?,?,?,?,1,TRUE)";
+                " correct_answer, image_path, topic, difficulty, image_data, version, is_current) " +
+                "VALUES (?,?,?,?,?,?,?,?,?,?,?,1,TRUE)";
         try (Connection conn = DatabaseConfig.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
 
             bindCommonFields(ps, q);
+            ps.setBytes(11, q.getImageData());
             ps.executeUpdate();
 
             try (ResultSet keys = ps.getGeneratedKeys()) {
@@ -144,6 +145,13 @@ public class QuestionDAO implements QuestionSource {
             conn = DatabaseConfig.getConnection();
             conn.setAutoCommit(false);   // transaction: both steps succeed or neither
 
+            // 0) resolve the illustration BEFORE retiring the old version:
+            //    path+bytes = new image · path only = keep previous · no path = none
+            byte[] imageData = q.getImageData();
+            if (imageData == null && q.getImagePath() != null) {
+                imageData = readCurrentImage(conn, q.getBaseId());
+            }
+
             // 1) retire the current version
             try (PreparedStatement ps = conn.prepareStatement(
                     "UPDATE Questions SET is_current = FALSE WHERE base_id = ? AND is_current = TRUE")) {
@@ -164,13 +172,14 @@ public class QuestionDAO implements QuestionSource {
             // 3) insert the new current version
             String insert = "INSERT INTO Questions " +
                     "(course_id, question_text, answer_1, answer_2, answer_3, answer_4, " +
-                    " correct_answer, image_path, topic, difficulty, base_id, version, is_current) " +
-                    "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,TRUE)";
+                    " correct_answer, image_path, topic, difficulty, image_data, base_id, version, is_current) " +
+                    "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,TRUE)";
             int newId;
             try (PreparedStatement ps = conn.prepareStatement(insert, Statement.RETURN_GENERATED_KEYS)) {
                 bindCommonFields(ps, q);
-                ps.setInt(11, q.getBaseId());
-                ps.setInt(12, nextVersion);
+                ps.setBytes(11, imageData);
+                ps.setInt(12, q.getBaseId());
+                ps.setInt(13, nextVersion);
                 ps.executeUpdate();
                 try (ResultSet keys = ps.getGeneratedKeys()) {
                     keys.next();
@@ -208,6 +217,40 @@ public class QuestionDAO implements QuestionSource {
         } catch (SQLException e) {
             System.err.println("[QuestionDAO] delete failed: " + e.getMessage());
             return false;
+        }
+    }
+
+    // ===== illustration (lazy) ===========================================
+
+    /**
+     * The illustration bytes of ONE question row (any version), or null if it
+     * has no image. Deliberately separate from the list queries so bank
+     * responses never haul BLOBs across the wire (NFR 18); clients call this
+     * only when they actually display the image.
+     */
+    @Override
+    public byte[] getImage(int questionId) {
+        try (Connection conn = DatabaseConfig.getConnection();
+             PreparedStatement ps = conn.prepareStatement(
+                     "SELECT image_data FROM Questions WHERE id = ?")) {
+            ps.setInt(1, questionId);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next() ? rs.getBytes(1) : null;
+            }
+        } catch (SQLException e) {
+            System.err.println("[QuestionDAO] getImage failed: " + e.getMessage());
+            return null;
+        }
+    }
+
+    /** The current version's image bytes for a family (used by the keep-image rule). */
+    private byte[] readCurrentImage(Connection conn, int baseId) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(
+                "SELECT image_data FROM Questions WHERE base_id = ? AND is_current = TRUE")) {
+            ps.setInt(1, baseId);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next() ? rs.getBytes(1) : null;
+            }
         }
     }
 

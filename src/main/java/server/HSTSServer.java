@@ -77,6 +77,9 @@ public class HSTSServer extends AbstractServer {
                     safeSend(client, new Message(Command.SUCCESS,
                             (Serializable) questionDAO.getHistory((Integer) request.getPayload())));
                     break;
+                case GET_QUESTION_IMAGE:
+                    handleGetImage(request, client);
+                    break;
                 case ADD_QUESTION:
                     handleAdd(request, client);
                     break;
@@ -133,6 +136,20 @@ public class HSTSServer extends AbstractServer {
         QuestionFilter f = (QuestionFilter) request.getPayload();
         safeSend(client, new Message(Command.SUCCESS, (Serializable)
                 questionDAO.getByCourseFiltered(f.getCourseId(), f.getTopic(), f.getDifficulty())));
+    }
+
+    /**
+     * Lazy illustration fetch (NFR 18): bank lists never carry image bytes;
+     * a client asks for one question's image only when it displays it.
+     */
+    private void handleGetImage(Message request, ConnectionToClient client) {
+        if (!(request.getPayload() instanceof Integer)) {
+            safeSend(client, new Message(Command.ERROR,
+                    "GET_QUESTION_IMAGE requires a question id (Integer)."));
+            return;
+        }
+        safeSend(client, new Message(Command.SUCCESS,
+                questionDAO.getImage((Integer) request.getPayload())));
     }
 
     private void handleAdd(Message request, ConnectionToClient client) {

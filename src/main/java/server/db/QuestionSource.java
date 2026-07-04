@@ -33,4 +33,11 @@ public interface QuestionSource {
 
     /** All versions of one question family, oldest first. */
     List<Question> getHistory(int baseId);
+
+    /**
+     * Illustration bytes of one question row (any version), or null if none.
+     * Lazy by design: list results never carry bytes (NFR 18) — exam forms and
+     * bot answers fetch an image only when they actually render it.
+     */
+    byte[] getImage(int questionId);
 }

@@ -29,7 +29,17 @@ public class Question implements Serializable {
     private String answer3;
     private String answer4;
     private int    correctAnswer;   // 1..4
-    private String imagePath;       // optional; null if none
+    private String imagePath;       // optional; original illustration file name; null = no image
+
+    /**
+     * Illustration bytes — deliberately LAZY on the wire: bank/list responses
+     * leave this null (only {@code imagePath} says an image exists) and clients
+     * fetch the bytes per question via {@code GET_QUESTION_IMAGE}. It is only
+     * populated here when uploading a new/changed image with ADD/UPDATE.
+     * Keep-image rule on update: {@code imagePath != null && imageData == null}
+     * means "keep the previous version's image".
+     */
+    private byte[] imageData;
 
     private String topic;           // optional
     private String difficulty;      // "EASY" | "MEDIUM" | "HARD" | null
@@ -88,6 +98,9 @@ public class Question implements Serializable {
 
     public String getImagePath() { return imagePath; }
     public void setImagePath(String imagePath) { this.imagePath = imagePath; }
+
+    public byte[] getImageData() { return imageData; }
+    public void setImageData(byte[] imageData) { this.imageData = imageData; }
 
     public String getTopic() { return topic; }
     public void setTopic(String topic) { this.topic = topic; }

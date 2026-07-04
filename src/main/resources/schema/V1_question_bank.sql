@@ -20,7 +20,8 @@ CREATE TABLE IF NOT EXISTS Questions (
     answer_3       TEXT         NOT NULL,
     answer_4       TEXT         NOT NULL,
     correct_answer TINYINT      NOT NULL,            -- which answer is correct: 1..4
-    image_path     VARCHAR(512) NULL,                -- optional illustration
+    image_path     VARCHAR(512) NULL,                -- optional illustration: original file name
+    image_data     LONGBLOB     NULL,                -- optional illustration: the bytes (see V5)
     topic          VARCHAR(255) NULL,                -- for auto exam generation
     difficulty     ENUM('EASY','MEDIUM','HARD') NULL,
     base_id        INT          NULL,                -- versioning: family id
