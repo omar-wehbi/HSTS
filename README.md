@@ -81,9 +81,13 @@ Both JARs load an external properties file from the **same directory as the JAR*
 (if present), then fall back to bundled defaults inside the JAR, then hard-coded
 fallbacks.
 
-**`server.properties`** (beside `hsts-server.jar`):
+**`server.properties`** (beside `hsts-server.jar`) — all keys optional; missing
+keys fall back to the defaults shown:
 
 ```properties
+db.host=localhost
+db.port=3306
+db.name=hsts_a3_db
 db.user=root
 db.password=root
 ```
@@ -96,8 +100,27 @@ server.port=5555
 ```
 
 For a two-machine demo, run the server on one machine and set `server.host` on the
-client to that machine's LAN IP. The database host/port (`localhost:3306/hsts_db`) are
-fixed in `server/db/DatabaseConfig.java` for the prototype.
+client to that machine's LAN IP.
+
+### Server database connection window
+
+On startup the server shows a small **connection window** (host, port, database,
+user, password, OCSF port) prefilled from the resolved settings. **Test
+Connection** tries a real connection and reports success or the exact SQL error;
+**Save as defaults** writes the values back to `server.properties`; **Start
+Server** boots with whatever is in the form. This means the server runs against
+*any* MySQL — a teammate's machine or the lab PC at the defense — without
+touching code or config files.
+
+Skip the window (scripts, CI, headless boxes) with:
+
+```bash
+java -jar target/hsts-server.jar --no-gui        # settings from properties/sysprops
+java -Dhsts.db.host=10.0.0.7 -Dhsts.db.password=pw -jar target/hsts-server.jar --no-gui
+```
+
+Precedence per key: connection window → `hsts.db.*` system properties →
+`server.properties` → built-in defaults.
 
 ---
 
