@@ -102,6 +102,8 @@
                        text="Editing creates a new version (old one is kept)" managed="false" visible="false"/>
                 <Region HBox.hgrow="ALWAYS"/>
                 <Button fx:id="newButton" onAction="#onNew" styleClass="secondary-button" text="New"/>
+                <Button fx:id="historyButton" disable="true" onAction="#onHistory"
+                        styleClass="secondary-button" text="History"/>
                 <Button fx:id="deleteButton" disable="true" onAction="#onDelete"
                         styleClass="secondary-button" text="Delete"/>
                 <Button fx:id="saveButton" onAction="#onSave" styleClass="primary-button" text="Add"/>

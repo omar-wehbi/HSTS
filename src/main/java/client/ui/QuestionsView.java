@@ -41,7 +41,8 @@ public class QuestionsView extends AbstractScreenUI {
     @FXML private ComboBox<Integer>  correctBox;
     @FXML private ComboBox<String>   difficultyBox;
     @FXML private TextField          topicField;
-    @FXML private Button             newButton, deleteButton, saveButton, imageButton, imageClearButton;
+    @FXML private Button             newButton, deleteButton, saveButton, imageButton, imageClearButton,
+                                     historyButton;
     @FXML private Label              countBadge, idBadge, editorTitle, hintLabel, statusLabel, savedLabel,
                                      imageNameLabel;
     @FXML private StackPane          logoBox;
@@ -63,6 +64,10 @@ public class QuestionsView extends AbstractScreenUI {
     private boolean keepExistingImage = false;
     /** True while a GET_QUESTION_IMAGE we sent is awaiting its reply. */
     private boolean awaitingImage = false;
+    /** True while a GET_QUESTION_HISTORY we sent is awaiting its reply. */
+    private boolean awaitingHistory = false;
+    /** Open history dialog (if any) — image replies are routed to it first. */
+    private QuestionHistoryDialog historyDialog;
 
     @Override
     public Parent render() {
@@ -141,6 +146,18 @@ public class QuestionsView extends AbstractScreenUI {
         statusLabel.setText("Illustration selected — will be saved with the question.");
     }
 
+    /**
+     * Opens the read-only version history of the selected question
+     * (scenario 2.2 — old versions stay in the bank and can be inspected).
+     */
+    @FXML
+    private void onHistory() {
+        if (selected == null) return;
+        awaitingHistory = true;
+        statusLabel.setText("Loading history…");
+        send(new Message(Command.GET_QUESTION_HISTORY, selected.getBaseId()));
+    }
+
     /** Removes the illustration (both a fresh pick and a stored one). */
     @FXML
     private void onClearImage() {
@@ -192,14 +209,20 @@ public class QuestionsView extends AbstractScreenUI {
             case SUCCESS:
                 Object payload = msg.getPayload();
                 if (awaitingImage && (payload instanceof byte[] || payload == null)) {
-                    // Reply to our lazy GET_QUESTION_IMAGE (NFR 18).
+                    // Reply to a lazy GET_QUESTION_IMAGE (NFR 18) — for the open
+                    // history dialog if there is one, else for the edit form.
                     awaitingImage = false;
-                    if (payload != null) {
+                    if (historyDialog != null && historyDialog.isShowing()) {
+                        historyDialog.onImage((byte[]) payload);
+                    } else if (payload != null) {
                         showPreview((byte[]) payload);
                         statusLabel.setText("Illustration loaded.");
                     } else {
                         hidePreview();
                     }
+                } else if (awaitingHistory && payload instanceof List) {
+                    awaitingHistory = false;
+                    openHistoryDialog((List<Question>) payload);
                 } else if (payload instanceof List) {
                     List<?> li = (List<?>) payload;
                     if (!li.isEmpty() && li.get(0) instanceof Course) {
@@ -223,6 +246,8 @@ public class QuestionsView extends AbstractScreenUI {
                 break;
             case ERROR:
                 awaitingSave = false;
+                awaitingHistory = false;
+                awaitingImage = false;
                 Alert a = new Alert(Alert.AlertType.ERROR, String.valueOf(msg.getPayload()));
                 a.setHeaderText("Server returned an error");
                 a.showAndWait();
@@ -231,6 +256,21 @@ public class QuestionsView extends AbstractScreenUI {
             default:
                 statusLabel.setText("Unexpected: " + msg.getCommand());
         }
+    }
+
+    /** Shows the version-history dialog; its illustrations load through us lazily. */
+    private void openHistoryDialog(List<Question> history) {
+        statusLabel.setText("History: " + history.size()
+                + (history.size() == 1 ? " version." : " versions."));
+        historyDialog = new QuestionHistoryDialog(
+                listView.getScene().getWindow(),
+                selected != null ? displayIdOf(selected) : "?",
+                history,
+                questionId -> {
+                    awaitingImage = true;
+                    send(new Message(Command.GET_QUESTION_IMAGE, questionId));
+                });
+        historyDialog.show();
     }
 
     private void updateBank(List<Question> bank) {
@@ -252,6 +292,7 @@ public class QuestionsView extends AbstractScreenUI {
         selected = null;
         clearForm();
         deleteButton.setDisable(true);
+        historyButton.setDisable(true);
         saveButton.setText("Add");
         editorTitle.setText("New question");
         setNodeShown(idBadge, false);
@@ -291,6 +332,7 @@ public class QuestionsView extends AbstractScreenUI {
         }
 
         deleteButton.setDisable(false);
+        historyButton.setDisable(false);
         saveButton.setText("Save (new version)");
         editorTitle.setText("Edit question");
         String displayId = displayIdOf(q);
