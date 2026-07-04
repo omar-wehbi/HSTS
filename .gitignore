@@ -1,5 +1,6 @@
 target/
 *.class
+.mvn/wrapper/maven-wrapper.jar
 .idea/
 *.iml
 *.log
@@ -10,3 +11,8 @@ target/
 
 # Internal planning/design notes — kept locally, not published
 docs/
+TEAM_DIVISION.md
+*_PLAN.md
+person-*-updates/
+notes.txt
+update-notes.txt
