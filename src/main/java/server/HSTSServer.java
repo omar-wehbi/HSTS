@@ -9,7 +9,7 @@ import ocsf.server.ConnectionToClient;
 import server.db.CourseDAO;
 import server.db.QuestionDAO;
 import server.db.UserDAO;
-
+import server.db.ExamDAO;
 
 /**
  * The HSTS Fat Server (Logic tier) — the secure gatekeeper.
@@ -25,8 +25,13 @@ public class HSTSServer extends AbstractServer {
     private final CourseDAO       courseDAO   = new CourseDAO();
     private final UserDAO         userDAO     = new UserDAO();
     private final SessionManager  sessions    = new SessionManager();
+    private final ExamDAO examDAO = new ExamDAO();
+    private final AutoExamGenerator autoExamGenerator = new AutoExamGenerator();
     /** Facade holding all question-bank rules (auth + validation), unit-tested with mocks. */
     private final QuestionService questions   = new QuestionService(questionDAO, courseDAO);
+
+    private final ExamService exams =
+            new ExamService(examDAO, questionDAO, autoExamGenerator);
 
     public HSTSServer(int port) {
         super(port);
@@ -88,6 +93,47 @@ public class HSTSServer extends AbstractServer {
                     break;
                 case DELETE_QUESTION:
                     safeSend(client, questions.delete(caller, request.getPayload()));
+                    break;
+                // ----- Exam building and approval -----
+                case CREATE_EXAM:
+                    safeSend(client, exams.create(caller, request.getPayload()));
+                    break;
+
+                case UPDATE_EXAM:
+                    safeSend(client, exams.update(caller, request.getPayload()));
+                    break;
+
+                case GET_EXAMS:
+                    safeSend(client, exams.getAll(caller));
+                    break;
+
+                case GET_EXAM:
+                    safeSend(client, exams.getById(caller, request.getPayload()));
+                    break;
+
+                case GET_MY_EXAMS:
+                    safeSend(client, exams.getMine(caller));
+                    break;
+
+                case GET_PENDING_EXAMS:
+                    safeSend(client, exams.getPending(caller));
+                    break;
+
+                case GENERATE_EXAM_AUTO:
+                    safeSend(client, exams.generateAuto(caller, request.getPayload()));
+                    break;
+
+                case SUBMIT_EXAM_FOR_APPROVAL:
+                    safeSend(client,
+                            exams.submitForApproval(caller, request.getPayload()));
+                    break;
+
+                case APPROVE_EXAM:
+                    safeSend(client, exams.approve(caller, request.getPayload()));
+                    break;
+
+                case REJECT_EXAM:
+                    safeSend(client, exams.reject(caller, request.getPayload()));
                     break;
                 default:
                     safeSend(client, new Message(Command.ERROR,

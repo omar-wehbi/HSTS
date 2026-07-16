@@ -30,6 +30,19 @@ public class Message implements Serializable {
         UPDATE_QUESTION,        // payload: Question        -> SUCCESS: Question (new current version)
         DELETE_QUESTION,        // payload: Integer baseId  -> SUCCESS: Integer (removed baseId)
 
+        // ----- Exam building: client -> server -----
+        CREATE_EXAM,             // payload: Exam -> SUCCESS: saved Exam
+        UPDATE_EXAM,             // payload: Exam -> SUCCESS: new Exam version
+        GET_EXAMS,               // payload: null -> SUCCESS: List<Exam>
+        GET_EXAM,                // payload: Integer examId -> SUCCESS: Exam
+        GET_MY_EXAMS,            // payload: null -> SUCCESS: List<Exam>
+        GENERATE_EXAM_AUTO,       // payload: AutoExamRequest -> SUCCESS: generated Exam
+
+        // ----- Exam approval: client -> server -----
+        GET_PENDING_EXAMS,          // payload: null -> SUCCESS: List<Exam>
+        SUBMIT_EXAM_FOR_APPROVAL,   // payload: Integer examId -> SUCCESS: Exam
+        APPROVE_EXAM,               // payload: Integer examId -> SUCCESS: Exam
+        REJECT_EXAM,                // payload: ExamRejectionRequest -> SUCCESS: Exam
         // ----- server -> client -----
         SUCCESS,
         ERROR

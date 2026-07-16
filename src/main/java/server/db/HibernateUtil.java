@@ -42,7 +42,8 @@ public final class HibernateUtil {
             // ---- mapped entities (add yours here) ----
             cfg.addAnnotatedClass(User.class);
             cfg.addAnnotatedClass(common.entities.Question.class);
-
+            cfg.addAnnotatedClass(common.entities.Exam.class);
+            cfg.addAnnotatedClass(common.entities.ExamQuestion.class);
             sessionFactory = cfg.buildSessionFactory();
             System.out.println("[HibernateUtil] SessionFactory initialised (ORM data tier up)");
         }
