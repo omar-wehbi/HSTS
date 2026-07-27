@@ -53,7 +53,7 @@ public class QuestionDAO implements QuestionSource {
         try (Session session = HibernateUtil.getSessionFactory().openSession()) {
             return session.createQuery(
                             "FROM Question WHERE current = true AND courseId = :course " +
-                            "ORDER BY baseId", Question.class)
+                                    "ORDER BY baseId", Question.class)
                     .setParameter("course", courseId)
                     .list();
         } catch (Exception e) {
@@ -100,6 +100,16 @@ public class QuestionDAO implements QuestionSource {
         } catch (Exception e) {
             System.err.println("[QuestionDAO] getHistory failed: " + e.getMessage());
             return List.of();
+        }
+    }
+
+    /** Returns one exact question version by database ID. */
+    public Question getById(int questionId) {
+        try (Session session = HibernateUtil.getSessionFactory().openSession()) {
+            return session.get(Question.class, questionId);
+        } catch (Exception e) {
+            System.err.println("[QuestionDAO] getById failed: " + e.getMessage());
+            return null;
         }
     }
 

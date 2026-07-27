@@ -10,6 +10,12 @@ import server.db.CourseDAO;
 import server.db.QuestionDAO;
 import server.db.UserDAO;
 import server.db.ExamDAO;
+import server.db.ExamReleaseDAO;
+import server.db.ExamSessionDAO;
+import server.db.GradeDAO;
+import server.db.PrincipalReportDAO;
+import server.db.StudyBotDAO;
+import server.bot.ExternalStudyBotApiAdapter;
 
 /**
  * The HSTS Fat Server (Logic tier) — the secure gatekeeper.
@@ -26,12 +32,35 @@ public class HSTSServer extends AbstractServer {
     private final UserDAO         userDAO     = new UserDAO();
     private final SessionManager  sessions    = new SessionManager();
     private final ExamDAO examDAO = new ExamDAO();
+    private final ExamReleaseDAO examReleaseDAO = new ExamReleaseDAO();
+    private final ExamSessionDAO examSessionDAO = new ExamSessionDAO();
+    private final GradeDAO gradeDAO = new GradeDAO();
+    private final PrincipalReportDAO principalReportDAO = new PrincipalReportDAO();
+    private final StudyBotDAO studyBotDAO = new StudyBotDAO();
     private final AutoExamGenerator autoExamGenerator = new AutoExamGenerator();
     /** Facade holding all question-bank rules (auth + validation), unit-tested with mocks. */
     private final QuestionService questions   = new QuestionService(questionDAO, courseDAO);
 
     private final ExamService exams =
             new ExamService(examDAO, questionDAO, autoExamGenerator);
+
+    private final ExamReleaseService releases =
+            new ExamReleaseService(examDAO, examReleaseDAO);
+
+    private final ExamExecutionService execution =
+            new ExamExecutionService(examReleaseDAO, examDAO, examSessionDAO, questionDAO, userDAO);
+
+    private final GradingService grading =
+            new GradingService(gradeDAO, examSessionDAO, examDAO, questionDAO);
+
+    private final ResultsService results =
+            new ResultsService(gradeDAO, examSessionDAO, examDAO, questionDAO);
+
+    private final PrincipalReportService principalReports =
+            new PrincipalReportService(principalReportDAO);
+
+    private final StudyBotService studyBot =
+            new StudyBotService(studyBotDAO, userDAO, examSessionDAO, new ExternalStudyBotApiAdapter());
 
     public HSTSServer(int port) {
         super(port);
@@ -134,6 +163,112 @@ public class HSTSServer extends AbstractServer {
 
                 case REJECT_EXAM:
                     safeSend(client, exams.reject(caller, request.getPayload()));
+                    break;
+
+                case RELEASE_EXAM:
+                    safeSend(client, releases.release(caller, request.getPayload()));
+                    break;
+
+                case GET_RELEASED_EXAMS:
+                    safeSend(client, releases.getReleased(caller));
+                    break;
+
+                case START_EXAM_SESSION:
+                    safeSend(client, execution.start(caller, request.getPayload()));
+                    break;
+
+                case SAVE_ANSWERS:
+                    safeSend(client, execution.save(caller, request.getPayload()));
+                    break;
+
+                case SUBMIT_ANSWERS:
+                    safeSend(client, execution.submit(caller, request.getPayload()));
+                    break;
+
+                case GET_EXAM_SESSION:
+                    safeSend(client, execution.getSession(caller, request.getPayload()));
+                    break;
+
+                case EXTEND_EXAM_TIME:
+                    safeSend(client, execution.extend(caller, request.getPayload()));
+                    break;
+
+                case GET_EXECUTION_SUMMARY:
+                    safeSend(client, execution.summary(caller, request.getPayload()));
+                    break;
+
+                case GRADE_EXAM_AUTO:
+                    safeSend(client, grading.autoGrade(caller, request.getPayload()));
+                    break;
+
+                case APPROVE_GRADE:
+                    safeSend(client, grading.approve(caller, request.getPayload()));
+                    break;
+
+                case OVERRIDE_GRADE:
+                    safeSend(client, grading.override(caller, request.getPayload()));
+                    break;
+
+                case GET_STUDENT_RESULTS:
+                    safeSend(client, results.getStudentResults(caller));
+                    break;
+
+                case GET_CHECKED_EXAM:
+                    safeSend(client, results.getCheckedExam(caller, request.getPayload()));
+                    break;
+
+                case GET_EXAM_STATISTICS:
+                    safeSend(client, results.getTeacherExamResults(caller, request.getPayload()));
+                    break;
+
+                case GET_PRINCIPAL_DATA:
+                    safeSend(client, principalReports.getPrincipalData(caller));
+                    break;
+
+                case GET_PRINCIPAL_READ_ONLY:
+                    safeSend(client, principalReports.getReadOnlyData(caller));
+                    break;
+
+                case GET_REPORT:
+                    safeSend(client, principalReports.getReport(caller, request.getPayload()));
+                    break;
+
+                case GET_EXAM_COMPARISON_REPORT:
+                    safeSend(client, principalReports.getExamComparisonReport(caller, request.getPayload()));
+                    break;
+
+                case CREATE_STUDY_BOT:
+                    safeSend(client, studyBot.create(caller, request.getPayload()));
+                    break;
+                case GET_STUDY_BOT:
+                    safeSend(client, studyBot.getBot(caller, request.getPayload()));
+                    break;
+                case SET_STUDY_BOT_AVAILABILITY:
+                    safeSend(client, studyBot.setAvailability(caller, request.getPayload()));
+                    break;
+                case ADD_STUDY_BOT_SOURCE:
+                    safeSend(client, studyBot.addSource(caller, request.getPayload()));
+                    break;
+                case ADD_STUDY_BOT_DOCUMENT_SOURCE:
+                    safeSend(client, studyBot.addDocumentSource(caller, request.getPayload()));
+                    break;
+                case UPDATE_STUDY_BOT_SOURCE:
+                    safeSend(client, studyBot.updateSource(caller, request.getPayload()));
+                    break;
+                case DELETE_STUDY_BOT_SOURCE:
+                    safeSend(client, studyBot.deleteSource(caller, request.getPayload()));
+                    break;
+                case GET_STUDY_BOT_SOURCES:
+                    safeSend(client, studyBot.getSources(caller, request.getPayload()));
+                    break;
+                case ASK_STUDY_BOT:
+                    safeSend(client, studyBot.ask(caller, request.getPayload()));
+                    break;
+                case GET_MY_STUDY_BOT_HISTORY:
+                    safeSend(client, studyBot.personalHistory(caller));
+                    break;
+                case GET_STUDY_BOT_USAGE:
+                    safeSend(client, studyBot.aggregateHistory(caller, request.getPayload()));
                     break;
                 default:
                     safeSend(client, new Message(Command.ERROR,
