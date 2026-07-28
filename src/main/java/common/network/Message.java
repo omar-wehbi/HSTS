@@ -43,6 +43,47 @@ public class Message implements Serializable {
         SUBMIT_EXAM_FOR_APPROVAL,   // payload: Integer examId -> SUCCESS: Exam
         APPROVE_EXAM,               // payload: Integer examId -> SUCCESS: Exam
         REJECT_EXAM,                // payload: ExamRejectionRequest -> SUCCESS: Exam
+
+        // ----- Exam release: client -> server -----
+        RELEASE_EXAM,               // payload: ExamReleaseRequest -> SUCCESS: ExamRelease
+        GET_RELEASED_EXAMS,         // payload: null -> SUCCESS: List<ExamRelease>
+
+        // ----- Exam execution and live extension -----
+        START_EXAM_SESSION,          // payload: StartExamRequest -> SUCCESS: ExamForm
+        SAVE_ANSWERS,                // payload: SaveAnswersRequest -> SUCCESS: ExamSession
+        SUBMIT_ANSWERS,              // payload: SubmitAnswersRequest -> SUCCESS: ExamSession
+        GET_EXAM_SESSION,            // payload: Integer sessionId -> SUCCESS: ExamSession
+        EXTEND_EXAM_TIME,             // payload: ExtendExamTimeRequest -> SUCCESS: number extended
+        GET_EXECUTION_SUMMARY,        // payload: Integer releaseId -> SUCCESS: ExamExecutionSummary
+
+        // ----- Grading -----
+        GRADE_EXAM_AUTO,             // payload: Integer sessionId -> SUCCESS: Grade
+        APPROVE_GRADE,               // payload: Integer gradeId -> SUCCESS: Grade
+        OVERRIDE_GRADE,              // payload: OverrideGradeRequest -> SUCCESS: Grade
+
+        // ----- Results -----
+        GET_STUDENT_RESULTS,          // payload: null -> SUCCESS: List<StudentResultSummary>
+        GET_CHECKED_EXAM,             // payload: Integer gradeId -> SUCCESS: CheckedExamResult
+        GET_EXAM_STATISTICS,          // payload: Integer releaseId -> SUCCESS: TeacherExamResults
+
+        // ----- Principal read-only access and reports -----
+        GET_PRINCIPAL_DATA,          // payload: null -> SUCCESS: PrincipalData
+        GET_PRINCIPAL_READ_ONLY,     // payload: null -> SUCCESS: PrincipalReadOnlyData
+        GET_REPORT,                  // payload: PrincipalReportRequest -> SUCCESS: PrincipalReport
+        GET_EXAM_COMPARISON_REPORT,  // payload: ExamComparisonReportRequest -> SUCCESS: PrincipalReport
+
+        // ----- Study bot -----
+        CREATE_STUDY_BOT,            // payload: CreateStudyBotRequest
+        GET_STUDY_BOT,               // payload: Integer courseId
+        SET_STUDY_BOT_AVAILABILITY,  // payload: SetStudyBotAvailabilityRequest
+        ADD_STUDY_BOT_SOURCE,        // payload: StudyBotSourceRequest
+        ADD_STUDY_BOT_DOCUMENT_SOURCE,// payload: StudyBotDocumentSourceRequest
+        UPDATE_STUDY_BOT_SOURCE,     // payload: UpdateStudyBotSourceRequest
+        DELETE_STUDY_BOT_SOURCE,     // payload: Integer sourceId
+        GET_STUDY_BOT_SOURCES,       // payload: Integer courseId
+        ASK_STUDY_BOT,               // payload: StudyBotQuestionRequest -> StudyBotAnswer
+        GET_MY_STUDY_BOT_HISTORY,    // payload: null -> List<StudyBotAnswer>
+        GET_STUDY_BOT_USAGE,         // payload: Integer courseId -> anonymized StudyBotUsageReport
         // ----- server -> client -----
         SUCCESS,
         ERROR

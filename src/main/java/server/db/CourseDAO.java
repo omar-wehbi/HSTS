@@ -27,4 +27,17 @@ public class CourseDAO {
         }
         return list;
     }
+
+    /** Course-teacher assignment is authoritative data imported from the external user system. */
+    public boolean isTeacherAssigned(int teacherId, int courseId) {
+        try (Connection conn = DatabaseConfig.getConnection();
+             PreparedStatement ps = conn.prepareStatement(
+                     "SELECT 1 FROM CourseTeachers WHERE teacher_id=? AND course_id=?")) {
+            ps.setInt(1, teacherId); ps.setInt(2, courseId);
+            try (ResultSet rs = ps.executeQuery()) { return rs.next(); }
+        } catch (SQLException e) {
+            System.err.println("[CourseDAO] isTeacherAssigned failed: " + e.getMessage());
+            return false;
+        }
+    }
 }
