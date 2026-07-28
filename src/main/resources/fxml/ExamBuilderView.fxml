@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.ComboBox?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.control.ListView?>
+<?import javafx.scene.control.Tab?>
+<?import javafx.scene.control.TabPane?>
+<?import javafx.scene.control.TextArea?>
+<?import javafx.scene.control.TextField?>
+<?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.Region?>
+<?import javafx.scene.layout.VBox?>
+<?import javafx.scene.shape.Circle?>
+
+<VBox prefHeight="700.0" prefWidth="1100.0"
+      xmlns="http://javafx.com/javafx" xmlns:fx="http://javafx.com/fxml">
+
+    <HBox styleClass="header-bar">
+        <VBox spacing="2.0">
+            <Label styleClass="header-title" text="HSTS · Exam Builder"/>
+            <Label styleClass="header-subtitle" text="Manual pick or auto-generate · total must be 100 points"/>
+        </VBox>
+        <Region HBox.hgrow="ALWAYS"/>
+        <Button onAction="#onBack" styleClass="header-button" text="← Exams"/>
+        <HBox styleClass="status-pill">
+            <Circle radius="5.0" styleClass="status-dot"/>
+            <Label text="Connected"/>
+        </HBox>
+        <Label fx:id="pointsBadge" styleClass="count-badge" text="0 / 100"/>
+    </HBox>
+
+    <TabPane VBox.vgrow="ALWAYS">
+        <Tab closable="false" text="Manual">
+            <VBox spacing="12.0" styleClass="body">
+                <HBox spacing="18.0" VBox.vgrow="ALWAYS">
+                    <VBox prefWidth="320.0" spacing="8.0" styleClass="card">
+                        <Label styleClass="section-title" text="Question bank"/>
+                        <ComboBox fx:id="courseBox" maxWidth="Infinity" promptText="Course"/>
+                        <Button maxWidth="Infinity" onAction="#onLoadBank"
+                                styleClass="secondary-button" text="Load questions"/>
+                        <ListView fx:id="bankList" styleClass="questions-list" VBox.vgrow="ALWAYS"/>
+                        <HBox spacing="8.0">
+                            <TextField fx:id="pointsField" prefWidth="80.0" promptText="pts" text="25"/>
+                            <Button fx:id="addButton" onAction="#onAddQuestion"
+                                    styleClass="primary-button" text="Add →"/>
+                        </HBox>
+                    </VBox>
+
+                    <VBox spacing="8.0" styleClass="card" HBox.hgrow="ALWAYS">
+                        <Label styleClass="section-title" text="Exam details"/>
+                        <Label styleClass="field-label" text="TITLE"/>
+                        <TextField fx:id="titleField" promptText="Exam title"/>
+                        <Label styleClass="field-label" text="DURATION (MINUTES)"/>
+                        <TextField fx:id="durationField" promptText="60" text="60"/>
+                        <Label styleClass="field-label" text="STUDENT INSTRUCTIONS"/>
+                        <TextArea fx:id="studentInstructions" prefRowCount="2" wrapText="true"/>
+                        <Label styleClass="field-label" text="TEACHER-ONLY NOTES"/>
+                        <TextArea fx:id="teacherNotes" prefRowCount="2" wrapText="true"/>
+                        <Label styleClass="section-title" text="Selected questions"/>
+                        <ListView fx:id="selectedList" styleClass="questions-list" VBox.vgrow="ALWAYS"/>
+                        <HBox spacing="8.0">
+                            <Button onAction="#onRemoveSelected" styleClass="secondary-button" text="Remove"/>
+                            <Region HBox.hgrow="ALWAYS"/>
+                            <Button fx:id="saveButton" onAction="#onSave"
+                                    styleClass="primary-button" text="Save exam"/>
+                        </HBox>
+                        <Label fx:id="statusLabel" styleClass="field-label" text=""/>
+                    </VBox>
+                </HBox>
+            </VBox>
+        </Tab>
+
+        <Tab closable="false" text="Automatic">
+            <VBox spacing="12.0" styleClass="body">
+                <VBox spacing="10.0" styleClass="card">
+                    <Label styleClass="section-title" text="Auto-generate from bank"/>
+                    <Label wrapText="true"
+                           text="Define requirements by topic and difficulty. Total points must equal 100. If the pool is too small, the server returns an error and no exam is created."/>
+                    <HBox spacing="10.0">
+                        <TextField fx:id="autoTopic" promptText="Topic" prefWidth="160"/>
+                        <ComboBox fx:id="autoDifficulty" prefWidth="120" promptText="Difficulty"/>
+                        <TextField fx:id="autoCount" promptText="Count" prefWidth="70" text="2"/>
+                        <TextField fx:id="autoPts" promptText="Pts each" prefWidth="80" text="25"/>
+                        <Button onAction="#onAddRequirement" styleClass="secondary-button" text="Add requirement"/>
+                    </HBox>
+                    <ListView fx:id="requirementsList" prefHeight="140"/>
+                    <HBox spacing="10.0">
+                        <Button onAction="#onRemoveRequirement" styleClass="secondary-button" text="Remove"/>
+                        <Region HBox.hgrow="ALWAYS"/>
+                        <Label fx:id="autoPointsLabel" styleClass="id-badge" text="0 / 100"/>
+                        <Button onAction="#onGenerateAuto" styleClass="primary-button" text="Generate exam"/>
+                    </HBox>
+                    <Label fx:id="autoStatusLabel" styleClass="field-label" text=""/>
+                </VBox>
+            </VBox>
+        </Tab>
+    </TabPane>
+</VBox>

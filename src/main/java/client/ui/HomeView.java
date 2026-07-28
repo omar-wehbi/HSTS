@@ -1,6 +1,7 @@
 package client.ui;
 
 import common.entities.User;
+import common.entities.Role;
 import common.network.Message;
 import common.network.Message.Command;
 import javafx.geometry.Insets;
@@ -20,9 +21,8 @@ import java.util.List;
  * Role-based home menu shown after a successful login (scenario 1: "after login,
  * show a menu appropriate to the user's role").
  *
- * <p>Each role sees a different set of actions. Features owned by other team
- * members appear as disabled "coming soon" entries for now; the Teacher's
- * "Question Bank" links to the working {@link QuestionsView}.
+ * <p>Teacher: Question Bank + Build Exams. Coordinator: Approve Exams.
+ * Scenarios 5–14 remain "coming soon" until Person 4's server APIs land.
  */
 public class HomeView extends AbstractScreenUI {
 
@@ -68,28 +68,54 @@ public class HomeView extends AbstractScreenUI {
     /** The menu entries for this user's role. */
     private List<Button> roleButtons() {
         List<Button> buttons = new ArrayList<>();
-        switch (user.getRole()) {
-            case TEACHER:
-                buttons.add(navButton("Question Bank",
-                        () -> ScreenManager.getInstance().setScreen(new QuestionsView())));
-                buttons.add(soon("Build Exams"));
-                buttons.add(soon("Grade Exams"));
-                buttons.add(soon("Exam Results"));
-                break;
-            case COORDINATOR:
-                buttons.add(soon("Approve Exams"));
-                break;
-            case PRINCIPAL:
-                buttons.add(soon("View Data"));
-                buttons.add(soon("Reports"));
-                break;
-            case STUDENT:
-                buttons.add(soon("Take Exam"));
-                buttons.add(soon("My Grades"));
-                buttons.add(soon("Study Bot"));
-                break;
+        for (HomeMenuEntry entry : menuEntriesFor(user.getRole())) {
+            if (entry.enabled()) {
+                buttons.add(navButton(entry.label(), entry.action()));
+            } else {
+                buttons.add(soon(entry.label()));
+            }
         }
         return buttons;
+    }
+
+    /**
+     * Menu blueprint for a role (also used by unit tests without JavaFX nodes).
+     */
+    static List<String> menuLabelsFor(Role role) {
+        List<String> labels = new ArrayList<>();
+        for (HomeMenuEntry entry : menuEntriesFor(role)) {
+            labels.add(entry.enabled() ? entry.label() : entry.label() + "  (coming soon)");
+        }
+        return labels;
+    }
+
+    private static List<HomeMenuEntry> menuEntriesFor(Role role) {
+        List<HomeMenuEntry> entries = new ArrayList<>();
+        switch (role) {
+            case TEACHER -> {
+                entries.add(new HomeMenuEntry("Question Bank", true,
+                        () -> ScreenManager.getInstance().setScreen(new QuestionsView())));
+                entries.add(new HomeMenuEntry("Build Exams", true,
+                        () -> ScreenManager.getInstance().setScreen(new ExamListView())));
+                entries.add(new HomeMenuEntry("Grade Exams", false, null));
+                entries.add(new HomeMenuEntry("Exam Results", false, null));
+            }
+            case COORDINATOR -> entries.add(new HomeMenuEntry("Approve Exams", true,
+                    () -> ScreenManager.getInstance().setScreen(new ExamApprovalView())));
+            case PRINCIPAL -> {
+                entries.add(new HomeMenuEntry("View Data", false, null));
+                entries.add(new HomeMenuEntry("Reports", false, null));
+            }
+            case STUDENT -> {
+                entries.add(new HomeMenuEntry("Take Exam", false, null));
+                entries.add(new HomeMenuEntry("My Grades", false, null));
+                entries.add(new HomeMenuEntry("Study Bot", false, null));
+            }
+        }
+        return entries;
+    }
+
+    private record HomeMenuEntry(String label, boolean enabled, Runnable action) {
     }
 
     private Button navButton(String text, Runnable action) {
