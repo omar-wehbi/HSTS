@@ -13,13 +13,14 @@
 --    2  Question bank ......... 8 questions across 3 courses, incl.
 --                               one EDITED question proving versioning
 --                               (v1 kept, v2 current)
---    3  Build exams ........... questions have topic + difficulty so
---                               auto-generation can filter; pool spans
---                               EASY/MEDIUM/HARD (Person 3 adds exam tables)
+--    3  Build exams ........... questions have topic + difficulty;
+--                               Exams + ExamQuestions tables (V3) included;
+--                               sample DRAFT + PENDING_APPROVAL exams
+--    4  Approve exam ........... one PENDING_APPROVAL exam for coord
 --    6  Take exam ............. students have id_number (ת"ז)
 --    14 Study bot ............. Enrollments let the server check a
 --                               student is enrolled in a course
---  Later scenarios (4,5,7-13) plug into these same users/courses;
+--  Later scenarios (5,7-13) plug into these same users/courses;
 --  their tables are added by their owners as the features land.
 -- ============================================================
 
@@ -80,17 +81,76 @@ CREATE TABLE IF NOT EXISTS Enrollments (
     CONSTRAINT fk_enroll_course FOREIGN KEY (course_id) REFERENCES Courses(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- V3 — Exam drawer (Person 3 schema, folded into one-command seed for Person 5 UI)
+CREATE TABLE IF NOT EXISTS Exams (
+    id                   INT          NOT NULL AUTO_INCREMENT,
+    base_id              INT          NULL,
+    version              INT          NOT NULL DEFAULT 1,
+    is_current           BOOLEAN      NOT NULL DEFAULT TRUE,
+    course_id            INT          NOT NULL,
+    teacher_id           INT          NOT NULL,
+    title                VARCHAR(255) NOT NULL,
+    duration_minutes     INT          NOT NULL,
+    student_instructions TEXT         NULL,
+    teacher_notes        TEXT         NULL,
+    status ENUM(
+                   'DRAFT',
+                   'PENDING_APPROVAL',
+                   'APPROVED',
+                   'REJECTED'
+               ) NOT NULL DEFAULT 'DRAFT',
+    rejection_reason     TEXT         NULL,
+    coordinator_id       INT          NULL,
+    created_at           TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at           TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
+                                   ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    CONSTRAINT fk_exam_course FOREIGN KEY (course_id) REFERENCES Courses(id),
+    CONSTRAINT fk_exam_teacher FOREIGN KEY (teacher_id) REFERENCES Users(id),
+    CONSTRAINT fk_exam_coordinator FOREIGN KEY (coordinator_id) REFERENCES Users(id),
+    CONSTRAINT chk_exam_duration CHECK (duration_minutes > 0),
+    CONSTRAINT chk_exam_version CHECK (version > 0),
+    INDEX idx_exam_base_id (base_id),
+    INDEX idx_exam_teacher (teacher_id),
+    INDEX idx_exam_course (course_id),
+    INDEX idx_exam_status (status),
+    INDEX idx_exam_current (is_current)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS ExamQuestions (
+    id           INT NOT NULL AUTO_INCREMENT,
+    exam_id      INT NOT NULL,
+    question_id  INT NOT NULL,
+    points       INT NOT NULL,
+    position     INT NOT NULL,
+    PRIMARY KEY (id),
+    CONSTRAINT fk_exam_question_exam
+        FOREIGN KEY (exam_id) REFERENCES Exams(id) ON DELETE CASCADE,
+    CONSTRAINT fk_exam_question_question
+        FOREIGN KEY (question_id) REFERENCES Questions(id),
+    CONSTRAINT chk_exam_question_points CHECK (points > 0),
+    CONSTRAINT chk_exam_question_position CHECK (position > 0),
+    CONSTRAINT uq_exam_question UNIQUE (exam_id, question_id),
+    CONSTRAINT uq_exam_position UNIQUE (exam_id, position),
+    INDEX idx_exam_questions_exam (exam_id),
+    INDEX idx_exam_questions_question (question_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- ============================================================
 -- DATA (deterministic wipe + re-seed)
 -- ============================================================
 
+DELETE FROM ExamQuestions;
+DELETE FROM Exams;
 DELETE FROM Enrollments;
 DELETE FROM Users;
 DELETE FROM Questions;
 DELETE FROM Courses;
-ALTER TABLE Users     AUTO_INCREMENT = 1;
-ALTER TABLE Questions AUTO_INCREMENT = 1;
-ALTER TABLE Courses   AUTO_INCREMENT = 1;
+ALTER TABLE ExamQuestions AUTO_INCREMENT = 1;
+ALTER TABLE Exams         AUTO_INCREMENT = 1;
+ALTER TABLE Users         AUTO_INCREMENT = 1;
+ALTER TABLE Questions     AUTO_INCREMENT = 1;
+ALTER TABLE Courses       AUTO_INCREMENT = 1;
 
 -- ---- Scenario 2/3: courses ----
 INSERT INTO Courses (name) VALUES
@@ -211,3 +271,37 @@ INSERT INTO Enrollments (user_id, course_id)
 SELECT u.id, c.id
 FROM Users u JOIN Courses c
 WHERE u.username IN ('maya', 'noa') AND c.id IN (1, 2);
+
+-- ---- Scenarios 3–4: sample exams for teacher / coordinator UIs ----
+-- Exam display id: until Person 3 ships a 6-digit codec, the UI shows
+-- "#" + base_id (see docs/PERSON5_UI.md). teacher_id = 1 (Dana).
+-- Four current Algorithms questions × 25 pts = 100.
+
+INSERT INTO Exams
+    (course_id, teacher_id, title, duration_minutes,
+     student_instructions, teacher_notes, status, version, is_current)
+VALUES
+    (1, 1, 'Algorithms Midterm (Draft)', 90,
+     'Answer all questions. No calculators.',
+     'Draft for demo — teacher can edit and submit.',
+     'DRAFT', 1, TRUE),
+    (1, 1, 'Algorithms Quiz (Pending)', 60,
+     'Closed book.',
+     'Waiting for coordinator approval.',
+     'PENDING_APPROVAL', 1, TRUE);
+
+UPDATE Exams SET base_id = id WHERE base_id IS NULL;
+
+-- Attach 4 current course-1 questions (25 each) to each sample exam.
+-- After the inserts above, ids 2, 3, 9, 10 are stable current Algorithms questions
+-- (id 1 is retired by the versioning demo; rich pool starts at id 9).
+INSERT INTO ExamQuestions (exam_id, question_id, points, position)
+SELECT e.id, q.question_id, 25, q.position
+FROM Exams e
+CROSS JOIN (
+    SELECT 2 AS question_id, 1 AS position UNION ALL
+    SELECT 3, 2 UNION ALL
+    SELECT 9, 3 UNION ALL
+    SELECT 10, 4
+) q
+WHERE e.title IN ('Algorithms Midterm (Draft)', 'Algorithms Quiz (Pending)');
