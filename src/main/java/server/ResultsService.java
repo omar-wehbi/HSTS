@@ -3,6 +3,12 @@ package server;
 import common.entities.*;
 import common.network.*;
 import server.db.ExamDAO;
+import server.db.ExamReleaseDAO;
+import server.db.ExamSessionDAO;
+import server.db.ExamSnapshotDAO;
+import server.db.ExamSnapshotQuestion;
+import server.db.ExecutionReportDAO;
+import server.db.GradeDAO;
 import server.db.QuestionDAO;
 
 import java.io.Serializable;

@@ -72,6 +72,21 @@ class ExamBuilderSessionTest {
     }
 
     @Test
+    void requestSaveClearsStaleBankWaits() {
+        session.requestCourses();
+        session.requestBank();
+        session.addQuestion(question(10), 50);
+        session.addQuestion(question(11), 50);
+
+        Message m = session.requestSave();
+
+        assertThat(m).isNotNull();
+        assertThat(session.isAwaitingSave()).isTrue();
+        assertThat(session.isAwaitingCourses()).isFalse();
+        assertThat(session.isAwaitingBank()).isFalse();
+    }
+
+    @Test
     void successCreateLoadsSavedExam() {
         session.addQuestion(question(10), 50);
         session.addQuestion(question(11), 50);
@@ -107,6 +122,31 @@ class ExamBuilderSessionTest {
                 "Not enough questions matching the criteria."));
         assertThat(session.getLastError()).contains("Not enough questions");
         assertThat(session.getStatusText()).contains("Auto-generate failed");
+    }
+
+    @Test
+    void staleBankErrorDoesNotCancelAutoGenerate() {
+        session.requestBank();
+        AutoExamRequest req = new AutoExamRequestBuilder()
+                .courseId(1).teacherId(1).title("Auto").durationMinutes(60)
+                .addRequirement("Sorting", "EASY", 2, 25)
+                .addRequirement("Complexity", "MEDIUM", 2, 25)
+                .build();
+        session.requestAutoGenerate(req);
+        session.onServerMessage(new Message(Command.ERROR, "bank timeout"));
+        assertThat(session.isAwaitingAuto()).isFalse();
+        assertThat(session.getStatusText()).contains("Auto-generate failed");
+    }
+
+    @Test
+    void connectionLossClearsPendingAutoGenerate() {
+        session.requestAutoGenerate(new AutoExamRequestBuilder()
+                .courseId(1).teacherId(1).title("Auto").durationMinutes(60)
+                .addRequirement("Sorting", "EASY", 4, 25)
+                .build());
+        session.onConnectionLost("Connection reset");
+        assertThat(session.isAwaitingAuto()).isFalse();
+        assertThat(session.getStatusText()).contains("Connection lost");
     }
 
     @Test

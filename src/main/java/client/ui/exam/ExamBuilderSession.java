@@ -135,6 +135,14 @@ public class ExamBuilderSession {
         return awaitingAuto;
     }
 
+    public boolean isAwaitingBank() {
+        return awaitingBank;
+    }
+
+    public boolean isAwaitingCourses() {
+        return awaitingCourses;
+    }
+
     /** Prefill from an existing exam (edit / new version). */
     public void loadExam(Exam exam) {
         if (exam == null) return;
@@ -226,6 +234,8 @@ public class ExamBuilderSession {
             return null;
         }
         lastError = null;
+        awaitingCourses = false;
+        awaitingBank = false;
         awaitingSave = true;
         awaitingAuto = false;
         statusText = isEditing() ? "Saving new version…" : "Creating exam…";
@@ -241,26 +251,51 @@ public class ExamBuilderSession {
             return null;
         }
         lastError = null;
-        awaitingAuto = true;
+        // Drop stale bank/course waits so their responses/errors cannot swallow the
+        // auto-generate result (or clear awaitingAuto before it arrives).
+        awaitingCourses = false;
+        awaitingBank = false;
         awaitingSave = false;
+        awaitingAuto = true;
         statusText = "Generating exam…";
         return new Message(Command.GENERATE_EXAM_AUTO, request);
+    }
+
+    /** Clears in-flight request flags after a socket failure. */
+    public void onConnectionLost(String reason) {
+        awaitingCourses = false;
+        awaitingBank = false;
+        awaitingSave = false;
+        awaitingAuto = false;
+        lastError = reason;
+        statusText = "Connection lost.";
     }
 
     public void onServerMessage(Message msg) {
         if (msg == null) return;
         switch (msg.getCommand()) {
             case SUCCESS -> handleSuccess(msg.getPayload());
-            case ERROR -> {
-                boolean wasAuto = awaitingAuto;
-                awaitingCourses = false;
-                awaitingBank = false;
-                awaitingSave = false;
-                awaitingAuto = false;
-                lastError = String.valueOf(msg.getPayload());
-                statusText = wasAuto ? "Auto-generate failed." : "Server error.";
-            }
+            case ERROR -> handleError(msg.getPayload());
             default -> { }
+        }
+    }
+
+    private void handleError(Object payload) {
+        lastError = String.valueOf(payload);
+        if (awaitingAuto) {
+            awaitingAuto = false;
+            statusText = "Auto-generate failed.";
+        } else if (awaitingSave) {
+            awaitingSave = false;
+            statusText = "Save failed.";
+        } else if (awaitingBank) {
+            awaitingBank = false;
+            statusText = "Could not load question bank.";
+        } else if (awaitingCourses) {
+            awaitingCourses = false;
+            statusText = "Could not load courses.";
+        } else {
+            statusText = "Server error.";
         }
     }
 

@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.control.ScrollPane?>
+<?import javafx.scene.control.TextField?>
+<?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.Region?>
+<?import javafx.scene.layout.VBox?>
+<?import javafx.scene.shape.Circle?>
+
+<VBox prefHeight="640.0" prefWidth="1000.0"
+      xmlns="http://javafx.com/javafx" xmlns:fx="http://javafx.com/fxml">
+
+    <HBox styleClass="header-bar">
+        <VBox spacing="2.0">
+            <Label styleClass="header-title" text="HSTS · Take Exam"/>
+            <Label styleClass="header-subtitle" text="Enter execution code and ID to begin"/>
+        </VBox>
+        <Region HBox.hgrow="ALWAYS"/>
+        <Button onAction="#onBackToMenu" styleClass="header-button" text="← Menu"/>
+        <HBox styleClass="status-pill">
+            <Circle radius="5.0" styleClass="status-dot"/>
+            <Label text="Connected"/>
+        </HBox>
+        <Label fx:id="timerLabel" styleClass="count-badge" text=""/>
+    </HBox>
+
+    <VBox spacing="12.0" styleClass="body card" VBox.vgrow="ALWAYS">
+        <HBox spacing="10.0" fx:id="startBox">
+            <TextField fx:id="codeField" promptText="Execution code" HBox.hgrow="ALWAYS"/>
+            <TextField fx:id="idField" promptText="ID number" prefWidth="160.0"/>
+            <Button onAction="#onStart" styleClass="primary-button" text="Start exam"/>
+        </HBox>
+
+        <Label fx:id="examTitleLabel" styleClass="section-title" text=""/>
+        <Label fx:id="instructionsLabel" styleClass="field-label" wrapText="true" text=""/>
+
+        <ScrollPane fx:id="questionsScroll" fitToWidth="true" VBox.vgrow="ALWAYS">
+            <VBox fx:id="questionsBox" spacing="16.0"/>
+        </ScrollPane>
+
+        <HBox spacing="10.0" fx:id="actionBox" visible="false" managed="false">
+            <Button onAction="#onSave" styleClass="secondary-button" text="Save answers"/>
+            <Button onAction="#onSubmit" styleClass="primary-button" text="Submit exam"/>
+        </HBox>
+
+        <Label fx:id="confirmationLabel" styleClass="field-label" text=""/>
+        <Label fx:id="statusLabel" styleClass="field-label" text=""/>
+    </VBox>
+</VBox>

@@ -1,5 +1,6 @@
 package client.ui;
 
+import client.events.ClientConnectionEvent;
 import client.events.ServerMessageEvent;
 import client.ui.exam.AutoExamRequestBuilder;
 import client.ui.exam.ExamBuilderSession;
@@ -18,6 +19,7 @@ import javafx.fxml.FXMLLoader;
 import javafx.scene.Parent;
 import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
+import javafx.scene.control.ButtonType;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
 import javafx.scene.control.ListCell;
@@ -31,6 +33,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.TreeSet;
 
 /**
  * Manual + automatic exam builder (scenario 3).
@@ -42,16 +45,18 @@ public class ExamBuilderView extends AbstractScreenUI {
     private final ExamBuilderSession session = new ExamBuilderSession();
     private final Exam existing;
     private final List<AutoExamRequirement> autoRequirements = new ArrayList<>();
+    /** Suppresses course listeners while ComboBoxes are rebound programmatically. */
+    private boolean syncingCourses;
 
-    @FXML private ComboBox<Course> courseBox;
+    @FXML private ComboBox<Course> courseBox, autoCourseBox;
+    @FXML private ComboBox<String> topicBox, autoTopic, autoDifficulty;
     @FXML private ListView<Question> bankList;
     @FXML private ListView<ExamQuestion> selectedList;
     @FXML private TextField titleField, durationField, pointsField;
     @FXML private TextArea studentInstructions, teacherNotes;
     @FXML private Label pointsBadge, statusLabel, autoPointsLabel, autoStatusLabel;
     @FXML private Button saveButton, addButton;
-    @FXML private TextField autoTopic, autoCount, autoPts;
-    @FXML private ComboBox<String> autoDifficulty;
+    @FXML private TextField autoCount, autoPts, autoTitleField, autoDurationField;
     @FXML private ListView<AutoExamRequirement> requirementsList;
 
     public ExamBuilderView(Exam existing) {
@@ -75,13 +80,35 @@ public class ExamBuilderView extends AbstractScreenUI {
         selectedList.setCellFactory(lv -> new SelectedCell());
         requirementsList.setCellFactory(lv -> new RequirementCell());
         autoDifficulty.setItems(FXCollections.observableArrayList("EASY", "MEDIUM", "HARD"));
-
+        topicBox.getSelectionModel().selectedItemProperty()
+                .addListener((o, was, now) -> refreshBankList());
+        courseBox.getSelectionModel().selectedItemProperty()
+                .addListener((o, was, now) -> {
+                    if (syncingCourses) return;
+                    if (now != null && (was == null || now.getId() != was.getId())) {
+                        session.setCourseId(now.getId());
+                        selectCourse(now.getId());
+                        send(session.requestBank());
+                    }
+                });
+        autoCourseBox.getSelectionModel().selectedItemProperty()
+                .addListener((o, was, now) -> {
+                    if (syncingCourses) return;
+                    if (now != null && (was == null || now.getId() != was.getId())) {
+                        session.setCourseId(now.getId());
+                        selectCourse(now.getId());
+                        send(session.requestBank());
+                    }
+                });
         User user = ScreenManager.getInstance().getCurrentUser();
         if (user != null) {
             session.setTeacherId(user.getId());
         }
         if (existing != null) {
             session.loadExam(existing);
+            if (session.getCourseId() > 0) {
+                seedCoursePlaceholder(session.getCourseId());
+            }
             applySessionToForm();
         }
         refreshPointsBadge();
@@ -89,9 +116,10 @@ public class ExamBuilderView extends AbstractScreenUI {
 
     @Override
     protected void onShown() {
-        send(session.requestCourses());
-        if (session.getCourseId() > 0) {
+        if (existing != null && session.getCourseId() > 0) {
             send(session.requestBank());
+        } else {
+            send(session.requestCourses());
         }
         refreshStatus();
     }
@@ -147,12 +175,12 @@ public class ExamBuilderView extends AbstractScreenUI {
 
     @FXML
     private void onAddRequirement() {
-        String topic = autoTopic.getText() == null ? "" : autoTopic.getText().trim();
+        String topic = autoTopic.getValue() == null ? "" : autoTopic.getValue().trim();
         String difficulty = autoDifficulty.getValue();
         int count = parsePositiveInt(autoCount.getText(), 0);
         int pts = parsePositiveInt(autoPts.getText(), 0);
         if (topic.isEmpty() || difficulty == null || count <= 0 || pts <= 0) {
-            alert("Fill topic, difficulty, count, and points per question.");
+            alert("Choose topic and difficulty, and fill count and points per question.");
             return;
         }
         autoRequirements.add(new AutoExamRequirement(topic, difficulty, count, pts));
@@ -172,12 +200,12 @@ public class ExamBuilderView extends AbstractScreenUI {
 
     @FXML
     private void onGenerateAuto() {
-        syncFormToSession();
+        syncAutoFormToSession();
         AutoExamRequestBuilder builder = new AutoExamRequestBuilder()
                 .courseId(session.getCourseId())
                 .teacherId(session.getTeacherId())
-                .title(titleField.getText())
-                .durationMinutes(parsePositiveInt(durationField.getText(), 0))
+                .title(autoTitleField.getText())
+                .durationMinutes(parsePositiveInt(autoDurationField.getText(), 0))
                 .studentInstructions(studentInstructions.getText())
                 .teacherNotes(teacherNotes.getText());
         for (AutoExamRequirement r : autoRequirements) {
@@ -197,24 +225,94 @@ public class ExamBuilderView extends AbstractScreenUI {
     @Subscribe
     public void onServerMessage(ServerMessageEvent event) {
         Message msg = event.getMessage();
+        boolean wasAwaitingCourses = session.isAwaitingCourses();
+        boolean wasAwaitingBank = session.isAwaitingBank();
+        boolean wasAwaitingSave = session.isAwaitingSave();
+        boolean wasAwaitingAuto = session.isAwaitingAuto();
         session.onServerMessage(msg);
         if (msg.getCommand() == Message.Command.ERROR) {
             alert(session.getLastError());
             autoStatusLabel.setText(session.getLastError() == null
                     ? session.getStatusText() : session.getLastError());
         }
-        if (!session.getCourses().isEmpty()) {
-            courseBox.setItems(FXCollections.observableArrayList(session.getCourses()));
-            selectCourse(session.getCourseId());
+        // Only rebind course boxes when courses just arrived — rebinding on every
+        // SUCCESS (e.g. bank load) re-fires selection listeners and loops forever.
+        if (wasAwaitingCourses && !session.getCourses().isEmpty()) {
+            syncingCourses = true;
+            try {
+                courseBox.setItems(FXCollections.observableArrayList(session.getCourses()));
+                autoCourseBox.setItems(FXCollections.observableArrayList(session.getCourses()));
+                selectCourse(session.getCourseId());
+            } finally {
+                syncingCourses = false;
+            }
+            if (existing == null && session.getCourseId() > 0) {
+                send(session.requestBank());
+            }
         }
-        bankList.getItems().setAll(session.getBank());
+        if (wasAwaitingBank || wasAwaitingCourses) {
+            refreshTopicBoxes();
+            refreshBankList();
+        }
         selectedList.getItems().setAll(session.getSelectedQuestions());
-        if (session.getLastSaved() != null) {
+        if (session.getLastSaved() != null && (wasAwaitingSave || wasAwaitingAuto)) {
             applySessionToForm();
+            if (wasAwaitingAuto) {
+                showAutoGenerateSuccess(session.getLastSaved());
+            } else {
+                showSaveSuccess(session.getLastSaved());
+            }
         }
         refreshPointsBadge();
         refreshStatus();
         autoStatusLabel.setText(session.getStatusText());
+    }
+
+    @Subscribe
+    public void onConnectionLost(ClientConnectionEvent event) {
+        session.onConnectionLost(event.getReason());
+        autoStatusLabel.setText(session.getStatusText());
+        statusLabel.setText(session.getStatusText());
+        alert(event.getReason()
+                + "\n\nIf you recently rebuilt the app, stop and restart the server, then try again.");
+    }
+
+    private void seedCoursePlaceholder(int courseId) {
+        String name = (existing != null && existing.getCourseName() != null)
+                ? existing.getCourseName()
+                : "Course #" + courseId;
+        Course placeholder = new Course(courseId, name);
+        syncingCourses = true;
+        try {
+            courseBox.setItems(FXCollections.observableArrayList(placeholder));
+            autoCourseBox.setItems(FXCollections.observableArrayList(placeholder));
+            selectCourse(courseId);
+        } finally {
+            syncingCourses = false;
+        }
+    }
+
+    private void showAutoGenerateSuccess(Exam saved) {
+        Alert success = new Alert(Alert.AlertType.INFORMATION);
+        success.setHeaderText(null);
+        success.setTitle("Exam generated");
+        success.setContentText("Exam \"" + saved.getTitle() + "\" was created successfully.");
+        success.getButtonTypes().setAll(
+                ButtonType.OK,
+                new ButtonType("View exams"));
+        success.showAndWait().ifPresent(button -> {
+            if (button != ButtonType.OK) {
+                ScreenManager.getInstance().setScreen(new ExamListView());
+            }
+        });
+    }
+
+    private void showSaveSuccess(Exam saved) {
+        Alert success = new Alert(Alert.AlertType.INFORMATION);
+        success.setHeaderText(null);
+        success.setTitle("Exam saved");
+        success.setContentText("Exam \"" + saved.getTitle() + "\" was saved successfully.");
+        success.showAndWait();
     }
 
     private void syncFormToSession() {
@@ -224,11 +322,28 @@ public class ExamBuilderView extends AbstractScreenUI {
         session.setDurationMinutes(parsePositiveInt(durationField.getText(), 0));
         session.setStudentInstructions(studentInstructions.getText());
         session.setTeacherNotes(teacherNotes.getText());
+        // Keep Automatic tab fields aligned with Manual edits.
+        autoTitleField.setText(titleField.getText());
+        autoDurationField.setText(durationField.getText());
+        selectCourse(session.getCourseId());
+    }
+
+    private void syncAutoFormToSession() {
+        Course c = autoCourseBox.getValue();
+        if (c != null) session.setCourseId(c.getId());
+        session.setTitle(autoTitleField.getText());
+        session.setDurationMinutes(parsePositiveInt(autoDurationField.getText(), 0));
+        // Keep Manual tab fields in sync so a later manual save uses the same details.
+        titleField.setText(autoTitleField.getText());
+        durationField.setText(autoDurationField.getText());
+        selectCourse(session.getCourseId());
     }
 
     private void applySessionToForm() {
         titleField.setText(session.getTitle());
         durationField.setText(String.valueOf(session.getDurationMinutes()));
+        autoTitleField.setText(session.getTitle());
+        autoDurationField.setText(String.valueOf(session.getDurationMinutes()));
         studentInstructions.setText(session.getStudentInstructions());
         teacherNotes.setText(session.getTeacherNotes());
         selectedList.getItems().setAll(session.getSelectedQuestions());
@@ -240,9 +355,55 @@ public class ExamBuilderView extends AbstractScreenUI {
         for (Course c : courseBox.getItems()) {
             if (c.getId() == courseId) {
                 courseBox.setValue(c);
+                break;
+            }
+        }
+        for (Course c : autoCourseBox.getItems()) {
+            if (c.getId() == courseId) {
+                autoCourseBox.setValue(c);
                 return;
             }
         }
+    }
+
+    /** Distinct topics from the loaded bank, for Manual + Automatic dropdowns. */
+    private void refreshTopicBoxes() {
+        String manualSelected = topicBox.getValue();
+        String autoSelected = autoTopic.getValue();
+        TreeSet<String> topics = new TreeSet<>(String.CASE_INSENSITIVE_ORDER);
+        for (Question q : session.getBank()) {
+            if (q.getTopic() != null && !q.getTopic().isBlank()) {
+                topics.add(q.getTopic().trim());
+            }
+        }
+        List<String> topicList = new ArrayList<>(topics);
+        topicBox.setItems(FXCollections.observableArrayList(topicList));
+        autoTopic.setItems(FXCollections.observableArrayList(topicList));
+        if (manualSelected != null && topics.contains(manualSelected)) {
+            topicBox.setValue(manualSelected);
+        } else {
+            topicBox.getSelectionModel().clearSelection();
+        }
+        if (autoSelected != null && topics.contains(autoSelected)) {
+            autoTopic.setValue(autoSelected);
+        } else {
+            autoTopic.getSelectionModel().clearSelection();
+        }
+    }
+
+    private void refreshBankList() {
+        String selectedTopic = topicBox.getValue();
+        if (selectedTopic == null || selectedTopic.isBlank()) {
+            bankList.getItems().setAll(session.getBank());
+            return;
+        }
+        List<Question> filtered = new ArrayList<>();
+        for (Question q : session.getBank()) {
+            if (q.getTopic() != null && selectedTopic.equalsIgnoreCase(q.getTopic().trim())) {
+                filtered.add(q);
+            }
+        }
+        bankList.getItems().setAll(filtered);
     }
 
     private void refreshPointsBadge() {

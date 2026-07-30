@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.ComboBox?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.control.TextArea?>
+<?import javafx.scene.control.TextField?>
+<?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.Region?>
+<?import javafx.scene.layout.VBox?>
+<?import javafx.scene.shape.Circle?>
+
+<VBox prefHeight="640.0" prefWidth="1000.0"
+      xmlns="http://javafx.com/javafx" xmlns:fx="http://javafx.com/fxml">
+
+    <HBox styleClass="header-bar">
+        <VBox spacing="2.0">
+            <Label styleClass="header-title" text="HSTS · Principal Reports"/>
+            <Label styleClass="header-subtitle" text="Compare teachers, courses, or students"/>
+        </VBox>
+        <Region HBox.hgrow="ALWAYS"/>
+        <Button onAction="#onBackToMenu" styleClass="header-button" text="← Menu"/>
+        <HBox styleClass="status-pill">
+            <Circle radius="5.0" styleClass="status-dot"/>
+            <Label text="Connected"/>
+        </HBox>
+    </HBox>
+
+    <VBox spacing="12.0" styleClass="body card" VBox.vgrow="ALWAYS">
+        <HBox spacing="10.0">
+            <ComboBox fx:id="dimensionCombo" prefWidth="160.0"/>
+            <TextField fx:id="entityIdsField" promptText="Optional entity IDs (comma-separated)" HBox.hgrow="ALWAYS"/>
+            <Button onAction="#onGenerate" styleClass="primary-button" text="Generate report"/>
+        </HBox>
+        <TextArea fx:id="reportArea" editable="false" prefRowCount="20" wrapText="true" VBox.vgrow="ALWAYS"/>
+        <Label fx:id="statusLabel" styleClass="field-label" text=""/>
+    </VBox>
+</VBox>

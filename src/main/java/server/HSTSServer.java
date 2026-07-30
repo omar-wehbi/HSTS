@@ -152,6 +152,10 @@ public class HSTSServer extends AbstractServer {
                     safeSend(client, exams.generateAuto(caller, request.getPayload()));
                     break;
 
+                case DELETE_EXAM:
+                    safeSend(client, exams.delete(caller, request.getPayload()));
+                    break;
+
                 case SUBMIT_EXAM_FOR_APPROVAL:
                     safeSend(client,
                             exams.submitForApproval(caller, request.getPayload()));
@@ -195,6 +199,14 @@ public class HSTSServer extends AbstractServer {
 
                 case GET_EXECUTION_SUMMARY:
                     safeSend(client, execution.summary(caller, request.getPayload()));
+                    break;
+
+                case GET_RELEASE_SESSIONS:
+                    safeSend(client, execution.sessionsForRelease(caller, request.getPayload()));
+                    break;
+
+                case GET_RELEASE_GRADES:
+                    safeSend(client, grading.listByRelease(caller, request.getPayload()));
                     break;
 
                 case GRADE_EXAM_AUTO:
@@ -277,9 +289,16 @@ public class HSTSServer extends AbstractServer {
         } catch (AuthorizationException e) {
             // A handler called Authorization.requireRole(...) and the caller wasn't allowed.
             safeSend(client, new Message(Command.ERROR, e.getMessage()));
-        } catch (Exception e) {
-            log("handler threw: " + e.getMessage());
-            safeSend(client, new Message(Command.ERROR, "Server error: " + e.getMessage()));
+        } catch (Throwable e) {
+            // Catch Error too (e.g. NoClassDefFoundError after a hot rebuild) so the
+            // OCSF worker thread does not die and drop the client connection.
+            log("handler threw: " + e);
+            e.printStackTrace();
+            String detail = e.getMessage();
+            if (detail == null || detail.isBlank()) {
+                detail = e.getClass().getSimpleName();
+            }
+            safeSend(client, new Message(Command.ERROR, "Server error: " + detail));
         }
     }
 
@@ -320,8 +339,12 @@ public class HSTSServer extends AbstractServer {
     // ===== helpers ========================================================
 
     private void safeSend(ConnectionToClient client, Message response) {
-        try { client.sendToClient(response); }
-        catch (Exception e) { log("failed to send to " + client + ": " + e.getMessage()); }
+        try {
+            client.sendToClient(response);
+        } catch (Exception e) {
+            log("failed to send to " + client + ": " + e.getMessage());
+            e.printStackTrace();
+        }
     }
 
     private void log(String text) { System.out.println("[HSTSServer] " + text); }

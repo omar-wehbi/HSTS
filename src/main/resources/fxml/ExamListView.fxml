@@ -47,6 +47,8 @@
             <HBox spacing="10.0">
                 <Button fx:id="editButton" disable="true" onAction="#onEdit"
                         styleClass="secondary-button" text="Edit"/>
+                <Button fx:id="deleteButton" disable="true" onAction="#onDelete"
+                        styleClass="secondary-button" text="Delete"/>
                 <Button fx:id="submitButton" disable="true" onAction="#onSubmit"
                         styleClass="primary-button" text="Submit for approval"/>
             </HBox>

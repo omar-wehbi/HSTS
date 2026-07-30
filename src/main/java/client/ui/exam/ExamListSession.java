@@ -21,6 +21,7 @@ public class ExamListSession {
     private String lastError;
     private boolean awaitingList;
     private boolean awaitingSubmit;
+    private boolean awaitingDelete;
 
     public List<Exam> getExams() {
         return List.copyOf(exams);
@@ -87,6 +88,31 @@ public class ExamListSession {
                 || selected.getStatus() == ExamStatus.REJECTED);
     }
 
+    public boolean canDeleteSelected() {
+        return selected != null
+                && (selected.getStatus() == ExamStatus.DRAFT
+                || selected.getStatus() == ExamStatus.REJECTED);
+    }
+
+    public Message requestDelete() {
+        if (selected == null) {
+            lastError = "Select an exam first.";
+            return null;
+        }
+        if (!canDeleteSelected()) {
+            lastError = "Only draft or rejected exams can be deleted.";
+            return null;
+        }
+        awaitingDelete = true;
+        statusText = "Deleting exam…";
+        lastError = null;
+        return new Message(Command.DELETE_EXAM, selected.getId());
+    }
+
+    public boolean isAwaitingDelete() {
+        return awaitingDelete;
+    }
+
     /** Handles a SUCCESS / ERROR {@link Message} for this screen. */
     @SuppressWarnings("unchecked")
     public void onServerMessage(Message msg) {
@@ -94,7 +120,12 @@ public class ExamListSession {
         switch (msg.getCommand()) {
             case SUCCESS -> {
                 Object payload = msg.getPayload();
-                if (awaitingSubmit && payload instanceof Exam updated) {
+                if (awaitingDelete && payload instanceof Integer deletedId) {
+                    awaitingDelete = false;
+                    exams.removeIf(e -> e.getId() == deletedId);
+                    selected = null;
+                    statusText = "Exam deleted.";
+                } else if (awaitingSubmit && payload instanceof Exam updated) {
                     awaitingSubmit = false;
                     replaceOrAdd(updated);
                     selected = updated;
@@ -124,6 +155,7 @@ public class ExamListSession {
             case ERROR -> {
                 awaitingList = false;
                 awaitingSubmit = false;
+                awaitingDelete = false;
                 lastError = String.valueOf(msg.getPayload());
                 statusText = "Server error.";
             }

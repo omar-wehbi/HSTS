@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.control.ListView?>
+<?import javafx.scene.control.TextArea?>
+<?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.Region?>
+<?import javafx.scene.layout.VBox?>
+<?import javafx.scene.shape.Circle?>
+
+<VBox prefHeight="640.0" prefWidth="1000.0"
+      xmlns="http://javafx.com/javafx" xmlns:fx="http://javafx.com/fxml">
+
+    <HBox styleClass="header-bar">
+        <VBox spacing="2.0">
+            <Label styleClass="header-title" text="HSTS · My Grades"/>
+            <Label styleClass="header-subtitle" text="View approved results and checked answers"/>
+        </VBox>
+        <Region HBox.hgrow="ALWAYS"/>
+        <Button onAction="#onBackToMenu" styleClass="header-button" text="← Menu"/>
+        <HBox styleClass="status-pill">
+            <Circle radius="5.0" styleClass="status-dot"/>
+            <Label text="Connected"/>
+        </HBox>
+    </HBox>
+
+    <HBox styleClass="body" VBox.vgrow="ALWAYS">
+        <VBox prefWidth="320.0" spacing="12.0" styleClass="card">
+            <Label styleClass="section-title" text="Your results"/>
+            <ListView fx:id="resultsList" styleClass="questions-list" VBox.vgrow="ALWAYS"/>
+            <Button onAction="#onRefresh" styleClass="secondary-button" text="⟳ Refresh"/>
+        </VBox>
+
+        <VBox spacing="12.0" styleClass="card" HBox.hgrow="ALWAYS">
+            <Label fx:id="detailTitle" styleClass="section-title" text="Select a result"/>
+            <TextArea fx:id="detailArea" editable="false" prefRowCount="16" wrapText="true" VBox.vgrow="ALWAYS"/>
+            <Label fx:id="statusLabel" styleClass="field-label" text=""/>
+        </VBox>
+    </HBox>
+</VBox>

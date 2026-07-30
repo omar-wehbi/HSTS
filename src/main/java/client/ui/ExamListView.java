@@ -11,6 +11,7 @@ import javafx.fxml.FXMLLoader;
 import javafx.scene.Parent;
 import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
+import javafx.scene.control.ButtonType;
 import javafx.scene.control.Label;
 import javafx.scene.control.ListCell;
 import javafx.scene.control.ListView;
@@ -34,7 +35,7 @@ public class ExamListView extends AbstractScreenUI {
     @FXML private ListView<Exam> listView;
     @FXML private Label countBadge, detailTitle, idBadge, statusBadge, statusLabel;
     @FXML private TextArea detailArea;
-    @FXML private Button editButton, submitButton, newButton;
+    @FXML private Button editButton, deleteButton, submitButton, newButton;
 
     @Override
     public Parent render() {
@@ -100,6 +101,27 @@ public class ExamListView extends AbstractScreenUI {
         refreshStatus();
     }
 
+    @FXML
+    private void onDelete() {
+        Exam selected = session.getSelected();
+        if (selected == null || !session.canDeleteSelected()) return;
+        Alert confirm = new Alert(Alert.AlertType.CONFIRMATION,
+                "Delete exam \"" + selected.getTitle() + "\"?\nThis cannot be undone.",
+                ButtonType.YES, ButtonType.NO);
+        confirm.setHeaderText(null);
+        confirm.showAndWait().ifPresent(bt -> {
+            if (bt == ButtonType.YES) {
+                Message msg = session.requestDelete();
+                if (msg == null) {
+                    alert(session.getLastError());
+                    return;
+                }
+                send(msg);
+                refreshStatus();
+            }
+        });
+    }
+
     @Subscribe
     public void onServerMessage(ServerMessageEvent event) {
         session.onServerMessage(event.getMessage());
@@ -135,6 +157,7 @@ public class ExamListView extends AbstractScreenUI {
             statusBadge.setText("");
             detailArea.clear();
             editButton.setDisable(true);
+            deleteButton.setDisable(true);
             submitButton.setDisable(true);
             return;
         }
@@ -143,6 +166,7 @@ public class ExamListView extends AbstractScreenUI {
         statusBadge.setText(ExamStatusLabel.badge(exam.getStatus()));
         detailArea.setText(buildDetailText(exam));
         editButton.setDisable(!session.canEditSelected());
+        deleteButton.setDisable(!session.canDeleteSelected());
         submitButton.setDisable(!session.canSubmitSelected());
     }
 

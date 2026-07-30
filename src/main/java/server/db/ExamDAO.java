@@ -7,7 +7,9 @@ import org.hibernate.Session;
 import org.hibernate.Transaction;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Data Access Object for exams stored in the exam drawer.
@@ -46,6 +48,7 @@ public class ExamDAO {
             }
 
             loadQuestions(session, exam);
+            loadCourseNames(session, List.of(exam));
             return exam;
 
         } catch (Exception e) {
@@ -71,6 +74,7 @@ public class ExamDAO {
                     .list();
 
             loadQuestions(session, exams);
+            loadCourseNames(session, exams);
             return exams;
 
         } catch (Exception e) {
@@ -98,6 +102,7 @@ public class ExamDAO {
                     .list();
 
             loadQuestions(session, exams);
+            loadCourseNames(session, exams);
             return exams;
 
         } catch (Exception e) {
@@ -162,6 +167,32 @@ public class ExamDAO {
             System.err.println(
                     "[ExamDAO] getHistory failed: " + e.getMessage());
             return List.of();
+        }
+    }
+
+    /**
+     * Deletes an exam and all its questions. Only drafts/rejected exams may be deleted.
+     * Returns true on success.
+     */
+    public boolean delete(int examId) {
+        Transaction tx = null;
+        Session session = HibernateUtil.getSessionFactory().openSession();
+        try {
+            tx = session.beginTransaction();
+            session.createQuery("DELETE FROM ExamQuestion WHERE examId = :eid")
+                    .setParameter("eid", examId)
+                    .executeUpdate();
+            int deleted = session.createQuery("DELETE FROM Exam WHERE id = :eid")
+                    .setParameter("eid", examId)
+                    .executeUpdate();
+            tx.commit();
+            return deleted > 0;
+        } catch (Exception e) {
+            System.err.println("[ExamDAO] delete failed: " + e.getMessage());
+            rollback(tx);
+            return false;
+        } finally {
+            session.close();
         }
     }
 
@@ -518,6 +549,20 @@ public class ExamDAO {
 
         for (Exam exam : exams) {
             loadQuestions(session, exam);
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private void loadCourseNames(Session session, List<Exam> exams) {
+        if (exams.isEmpty()) return;
+        List<Object[]> rows = session.createNativeQuery(
+                "SELECT id, name FROM Courses", Object[].class).list();
+        Map<Integer, String> map = new HashMap<>();
+        for (Object[] row : rows) {
+            map.put((Integer) row[0], (String) row[1]);
+        }
+        for (Exam exam : exams) {
+            exam.setCourseName(map.getOrDefault(exam.getCourseId(), "Course #" + exam.getCourseId()));
         }
     }
 

@@ -8,9 +8,12 @@ import common.network.ExamReleaseRequest;
 import common.network.Message;
 import server.db.CourseDAO;
 import server.db.ExamDAO;
+import server.db.ExamReleaseDAO;
+import server.db.ExamSnapshotDAO;
 import server.db.QuestionDAO;
 
 import java.io.Serializable;
+import java.time.LocalDateTime;
 
 /** Server-side rules for Scenario 5: releasing an approved exam. */
 public class ExamReleaseService {
@@ -33,6 +36,11 @@ public class ExamReleaseService {
         String invalid=validateRequest(request); if(invalid!=null)return error(invalid);
         Exam exam=examDAO.getById(request.getExamId());
         if(exam==null)return error("Exam not found.");
+        if(exam.getDurationMinutes()<=0)return error("Exam duration must be positive.");
+        LocalDateTime expectedClose=request.getOpenTime().plusMinutes(exam.getDurationMinutes());
+        if(!request.getCloseTime().equals(expectedClose))
+            return error("Close time must equal open time plus the exam duration ("
+                    + exam.getDurationMinutes() + " minutes).");
         if(!courseDAO.isTeacherAssigned(caller.getId(), exam.getCourseId()))
             throw new AuthorizationException("You may release only exams in courses you teach.");
         if(!exam.isCurrent())return error("Only the current exam version can be released.");
@@ -42,6 +50,7 @@ public class ExamReleaseService {
             return error("Execution code conflicts with another active or scheduled release.");
         ExamRelease saved=releaseDAO.create(new ExamRelease(exam.getId(),caller.getId(),code,request.getOpenTime(),request.getCloseTime()));
         if(saved==null)return error("Exam release failed.");
+        saved.setExamTitle(exam.getTitle());
         if(!snapshotDAO.createForRelease(saved.getId(),exam,questionDAO)){
             releaseDAO.delete(saved.getId());
             return error("Exam release failed while preserving the exam version.");

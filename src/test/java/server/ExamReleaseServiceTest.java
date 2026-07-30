@@ -49,12 +49,14 @@ class ExamReleaseServiceTest {
         exam.setCourseId(COURSE_ID);
         exam.setStatus(status);
         exam.setCurrent(current);
+        exam.setDurationMinutes(120);
+        exam.setTitle("Exam " + id);
         return exam;
     }
 
     private static ExamReleaseRequest validRequest() {
         LocalDateTime open = LocalDateTime.of(2026, 8, 1, 9, 0);
-        return new ExamReleaseRequest(15, "0042", open, open.plusHours(2));
+        return new ExamReleaseRequest(15, "0042", open, open.plusMinutes(120));
     }
 
     @Test
@@ -92,6 +94,20 @@ class ExamReleaseServiceTest {
                 "Close time must be after open time.");
 
         verifyNoInteractions(examDAO, releaseDAO, courseDAO);
+    }
+
+    @Test
+    void closeTimeMustMatchExamDuration() {
+        ExamReleaseService service = service();
+        User teacher = user(10, Role.TEACHER);
+        when(examDAO.getById(15)).thenReturn(exam(15, 10, ExamStatus.APPROVED, true));
+
+        ExamReleaseRequest mismatch = validRequest();
+        mismatch.setCloseTime(mismatch.getOpenTime().plusMinutes(90));
+
+        assertError(service.release(teacher, mismatch),
+                "Close time must equal open time plus the exam duration (120 minutes).");
+        verify(releaseDAO, never()).create(any());
     }
 
     @Test

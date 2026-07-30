@@ -17,11 +17,12 @@
 --                               Exams + ExamQuestions tables (V3) included;
 --                               sample DRAFT + PENDING_APPROVAL exams
 --    4  Approve exam ........... one PENDING_APPROVAL exam for coord
---    6  Take exam ............. students have id_number (ת"ז)
---    14 Study bot ............. Enrollments let the server check a
---                               student is enrolled in a course
---  Later scenarios (5,7-13) plug into these same users/courses;
---  their tables are added by their owners as the features land.
+--    5  Release exam ........... ExamReleases (+ snapshot tables)
+--    6  Take exam ............. students have id_number; ExamSessions
+--    7–10 Grading / results .... Grades, execution statistics
+--    11–12 Principal ........... read-only / report DAOs use Grades
+--    13–14 Study bot ........... CourseTeachers, StudyBots, sources,
+--                               history; Enrollments for access checks
 -- ============================================================
 
 CREATE DATABASE IF NOT EXISTS hsts_a3_db
@@ -136,16 +137,204 @@ CREATE TABLE IF NOT EXISTS ExamQuestions (
     INDEX idx_exam_questions_question (question_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- V4/V10 — Exam releases (alphanumeric 4-char codes; windowed reuse)
+CREATE TABLE IF NOT EXISTS ExamReleases (
+    id              INT         NOT NULL AUTO_INCREMENT,
+    exam_id         INT         NOT NULL,
+    released_by     INT         NOT NULL,
+    execution_code  CHAR(4)     NOT NULL,
+    open_time       DATETIME    NOT NULL,
+    close_time      DATETIME    NOT NULL,
+    created_at      TIMESTAMP   NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    CONSTRAINT fk_release_exam FOREIGN KEY (exam_id) REFERENCES Exams(id),
+    CONSTRAINT fk_release_teacher FOREIGN KEY (released_by) REFERENCES Users(id),
+    CONSTRAINT chk_release_execution_code
+        CHECK (execution_code REGEXP '^[A-Za-z0-9]{4}$'),
+    CONSTRAINT chk_release_time_range CHECK (close_time > open_time),
+    INDEX idx_release_exam (exam_id),
+    INDEX idx_release_teacher (released_by),
+    INDEX idx_release_window (open_time, close_time),
+    INDEX idx_release_code_window (execution_code, open_time, close_time)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- V6/V10 — Live exam sessions + answers
+CREATE TABLE IF NOT EXISTS ExamSessions (
+    id                INT NOT NULL AUTO_INCREMENT,
+    release_id        INT NOT NULL,
+    exam_id           INT NOT NULL,
+    student_id        INT NOT NULL,
+    started_at        DATETIME NOT NULL,
+    deadline          DATETIME NOT NULL,
+    submitted_at      DATETIME NULL,
+    status            ENUM('IN_PROGRESS','SUBMITTED','TIMED_OUT') NOT NULL DEFAULT 'IN_PROGRESS',
+    extension_minutes INT NOT NULL DEFAULT 0,
+    actual_duration_minutes INT NULL,
+    PRIMARY KEY (id),
+    CONSTRAINT fk_session_release FOREIGN KEY (release_id) REFERENCES ExamReleases(id),
+    CONSTRAINT fk_session_exam FOREIGN KEY (exam_id) REFERENCES Exams(id),
+    CONSTRAINT fk_session_student FOREIGN KEY (student_id) REFERENCES Users(id),
+    CONSTRAINT uq_session_attempt UNIQUE (release_id, student_id),
+    CONSTRAINT chk_session_deadline CHECK (deadline > started_at),
+    CONSTRAINT chk_session_extension CHECK (extension_minutes >= 0),
+    INDEX idx_session_student_status (student_id, status),
+    INDEX idx_session_release_status (release_id, status),
+    INDEX idx_session_deadline (deadline)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS StudentAnswers (
+    id              INT NOT NULL AUTO_INCREMENT,
+    session_id      INT NOT NULL,
+    question_id     INT NOT NULL,
+    selected_answer TINYINT NOT NULL,
+    PRIMARY KEY (id),
+    CONSTRAINT fk_answer_session FOREIGN KEY (session_id) REFERENCES ExamSessions(id) ON DELETE CASCADE,
+    CONSTRAINT fk_answer_question FOREIGN KEY (question_id) REFERENCES Questions(id),
+    CONSTRAINT uq_answer_question UNIQUE (session_id, question_id),
+    CONSTRAINT chk_selected_answer CHECK (selected_answer BETWEEN 1 AND 4),
+    INDEX idx_answer_session (session_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- V7/V10 — Grades
+CREATE TABLE IF NOT EXISTS Grades (
+    id INT NOT NULL AUTO_INCREMENT,
+    session_id INT NOT NULL,
+    exam_id INT NOT NULL,
+    student_id INT NOT NULL,
+    auto_score INT NOT NULL,
+    final_score INT NULL,
+    status ENUM('AUTO_GRADED','APPROVED','OVERRIDDEN') NOT NULL,
+    auto_graded_at DATETIME NOT NULL,
+    approved_by INT NULL,
+    approved_at DATETIME NULL,
+    override_justification VARCHAR(1000) NULL,
+    teacher_comment VARCHAR(2000) NULL,
+    PRIMARY KEY (id),
+    UNIQUE KEY uq_grades_session (session_id),
+    KEY idx_grades_exam (exam_id),
+    KEY idx_grades_student (student_id),
+    CONSTRAINT fk_grades_session FOREIGN KEY (session_id) REFERENCES ExamSessions(id),
+    CONSTRAINT fk_grades_exam FOREIGN KEY (exam_id) REFERENCES Exams(id),
+    CONSTRAINT fk_grades_student FOREIGN KEY (student_id) REFERENCES Users(id),
+    CONSTRAINT fk_grades_approver FOREIGN KEY (approved_by) REFERENCES Users(id),
+    CONSTRAINT chk_grades_auto_score CHECK (auto_score BETWEEN 0 AND 100),
+    CONSTRAINT chk_grades_final_score CHECK (final_score IS NULL OR final_score BETWEEN 0 AND 100)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- V10 — Immutable released-question snapshots + per-release stats
+CREATE TABLE IF NOT EXISTS ReleasedExamQuestions (
+    id INT NOT NULL AUTO_INCREMENT,
+    release_id INT NOT NULL,
+    question_id INT NOT NULL,
+    points INT NOT NULL,
+    position INT NOT NULL,
+    question_text TEXT NOT NULL,
+    answer_1 TEXT NOT NULL,
+    answer_2 TEXT NOT NULL,
+    answer_3 TEXT NOT NULL,
+    answer_4 TEXT NOT NULL,
+    correct_answer TINYINT NOT NULL,
+    image_path VARCHAR(512) NULL,
+    PRIMARY KEY (id),
+    UNIQUE KEY uq_release_snapshot_position (release_id, position),
+    CONSTRAINT fk_snapshot_release FOREIGN KEY (release_id) REFERENCES ExamReleases(id) ON DELETE CASCADE,
+    CONSTRAINT chk_snapshot_answer CHECK (correct_answer BETWEEN 1 AND 4)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS ExamExecutionStatistics (
+    release_id INT NOT NULL,
+    graded_count INT NOT NULL DEFAULT 0,
+    mean_score DECIMAL(7,3) NOT NULL DEFAULT 0,
+    median_score DECIMAL(7,3) NOT NULL DEFAULT 0,
+    d0 INT NOT NULL DEFAULT 0, d1 INT NOT NULL DEFAULT 0, d2 INT NOT NULL DEFAULT 0,
+    d3 INT NOT NULL DEFAULT 0, d4 INT NOT NULL DEFAULT 0, d5 INT NOT NULL DEFAULT 0,
+    d6 INT NOT NULL DEFAULT 0, d7 INT NOT NULL DEFAULT 0, d8 INT NOT NULL DEFAULT 0,
+    d9 INT NOT NULL DEFAULT 0,
+    calculated_at DATETIME NOT NULL,
+    PRIMARY KEY (release_id),
+    CONSTRAINT fk_execution_stats_release FOREIGN KEY (release_id) REFERENCES ExamReleases(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- V8 — Study bot
+CREATE TABLE IF NOT EXISTS CourseTeachers (
+    course_id INT NOT NULL,
+    teacher_id INT NOT NULL,
+    PRIMARY KEY (course_id, teacher_id),
+    CONSTRAINT fk_course_teacher_course FOREIGN KEY (course_id) REFERENCES Courses(id) ON DELETE CASCADE,
+    CONSTRAINT fk_course_teacher_user FOREIGN KEY (teacher_id) REFERENCES Users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS StudyBots (
+    course_id INT NOT NULL,
+    name VARCHAR(120) NOT NULL,
+    created_by INT NOT NULL,
+    available BOOLEAN NOT NULL DEFAULT FALSE,
+    include_question_bank BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (course_id),
+    CONSTRAINT fk_bot_course FOREIGN KEY (course_id) REFERENCES Courses(id) ON DELETE CASCADE,
+    CONSTRAINT fk_bot_creator FOREIGN KEY (created_by) REFERENCES Users(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS StudyBotSources (
+    id INT NOT NULL AUTO_INCREMENT,
+    course_id INT NOT NULL,
+    title VARCHAR(120) NOT NULL,
+    content MEDIUMTEXT NOT NULL,
+    source_type ENUM('TEXT','PDF','WORD') NOT NULL DEFAULT 'TEXT',
+    original_filename VARCHAR(255) NULL,
+    created_by INT NOT NULL,
+    updated_by INT NOT NULL,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    CONSTRAINT fk_bot_source_course FOREIGN KEY (course_id) REFERENCES StudyBots(course_id) ON DELETE CASCADE,
+    CONSTRAINT fk_bot_source_creator FOREIGN KEY (created_by) REFERENCES Users(id),
+    CONSTRAINT fk_bot_source_editor FOREIGN KEY (updated_by) REFERENCES Users(id),
+    INDEX idx_bot_sources_course (course_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS StudyBotHistory (
+    id INT NOT NULL AUTO_INCREMENT,
+    course_id INT NOT NULL,
+    student_id INT NOT NULL,
+    question TEXT NOT NULL,
+    answer MEDIUMTEXT NOT NULL,
+    status ENUM('ANSWERED','NO_ANSWER') NOT NULL DEFAULT 'ANSWERED',
+    asked_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    CONSTRAINT fk_bot_history_course FOREIGN KEY (course_id) REFERENCES StudyBots(course_id) ON DELETE CASCADE,
+    CONSTRAINT fk_bot_history_student FOREIGN KEY (student_id) REFERENCES Users(id) ON DELETE CASCADE,
+    INDEX idx_bot_history_student (student_id, asked_at),
+    INDEX idx_bot_history_course (course_id, asked_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- ============================================================
 -- DATA (deterministic wipe + re-seed)
 -- ============================================================
 
+DELETE FROM StudyBotHistory;
+DELETE FROM StudyBotSources;
+DELETE FROM StudyBots;
+DELETE FROM CourseTeachers;
+DELETE FROM ExamExecutionStatistics;
+DELETE FROM ReleasedExamQuestions;
+DELETE FROM Grades;
+DELETE FROM StudentAnswers;
+DELETE FROM ExamSessions;
+DELETE FROM ExamReleases;
 DELETE FROM ExamQuestions;
 DELETE FROM Exams;
 DELETE FROM Enrollments;
 DELETE FROM Users;
 DELETE FROM Questions;
 DELETE FROM Courses;
+ALTER TABLE StudyBotHistory AUTO_INCREMENT = 1;
+ALTER TABLE StudyBotSources AUTO_INCREMENT = 1;
+ALTER TABLE ReleasedExamQuestions AUTO_INCREMENT = 1;
+ALTER TABLE Grades        AUTO_INCREMENT = 1;
+ALTER TABLE StudentAnswers AUTO_INCREMENT = 1;
+ALTER TABLE ExamSessions  AUTO_INCREMENT = 1;
+ALTER TABLE ExamReleases  AUTO_INCREMENT = 1;
 ALTER TABLE ExamQuestions AUTO_INCREMENT = 1;
 ALTER TABLE Exams         AUTO_INCREMENT = 1;
 ALTER TABLE Users         AUTO_INCREMENT = 1;
@@ -305,3 +494,30 @@ CROSS JOIN (
     SELECT 10, 4
 ) q
 WHERE e.title IN ('Algorithms Midterm (Draft)', 'Algorithms Quiz (Pending)');
+
+-- ---- Scenario 5 prep: one APPROVED exam ready to release ----
+INSERT INTO Exams
+    (course_id, teacher_id, title, duration_minutes,
+     student_instructions, teacher_notes, status, version, is_current)
+VALUES
+    (1, 1, 'Algorithms Approved Quiz', 45,
+     'Closed book. Enter the 4-character code from your teacher.',
+     'Approved — ready for Release Exams screen.',
+     'APPROVED', 1, TRUE);
+
+UPDATE Exams SET base_id = id WHERE base_id IS NULL AND title = 'Algorithms Approved Quiz';
+
+INSERT INTO ExamQuestions (exam_id, question_id, points, position)
+SELECT e.id, q.question_id, 25, q.position
+FROM Exams e
+CROSS JOIN (
+    SELECT 2 AS question_id, 1 AS position UNION ALL
+    SELECT 3, 2 UNION ALL
+    SELECT 9, 3 UNION ALL
+    SELECT 10, 4
+) q
+WHERE e.title = 'Algorithms Approved Quiz';
+
+-- ---- Scenario 13–14: teacher assigned to Algorithms & Databases ----
+INSERT IGNORE INTO CourseTeachers (course_id, teacher_id)
+SELECT DISTINCT course_id, teacher_id FROM Exams;

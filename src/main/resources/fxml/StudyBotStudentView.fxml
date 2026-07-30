@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.ComboBox?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.control.ListView?>
+<?import javafx.scene.control.TextArea?>
+<?import javafx.scene.control.TextField?>
+<?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.Region?>
+<?import javafx.scene.layout.VBox?>
+<?import javafx.scene.shape.Circle?>
+
+<VBox prefHeight="640.0" prefWidth="1000.0"
+      xmlns="http://javafx.com/javafx" xmlns:fx="http://javafx.com/fxml">
+
+    <HBox styleClass="header-bar">
+        <VBox spacing="2.0">
+            <Label styleClass="header-title" text="HSTS · Study Bot"/>
+            <Label styleClass="header-subtitle" text="Ask questions about your enrolled courses"/>
+        </VBox>
+        <Region HBox.hgrow="ALWAYS"/>
+        <Button onAction="#onBackToMenu" styleClass="header-button" text="← Menu"/>
+        <HBox styleClass="status-pill">
+            <Circle radius="5.0" styleClass="status-dot"/>
+            <Label text="Connected"/>
+        </HBox>
+    </HBox>
+
+    <HBox styleClass="body" VBox.vgrow="ALWAYS">
+        <VBox prefWidth="260.0" spacing="12.0" styleClass="card">
+            <Label styleClass="section-title" text="Courses"/>
+            <ComboBox fx:id="courseCombo" maxWidth="Infinity"/>
+            <TextField fx:id="courseIdField" promptText="Or course ID"/>
+            <Button onAction="#onLoadBot" styleClass="secondary-button" text="Load bot"/>
+            <Label fx:id="botStatusLabel" styleClass="field-label" wrapText="true" text=""/>
+            <Label styleClass="section-title" text="History"/>
+            <ListView fx:id="historyList" styleClass="questions-list" VBox.vgrow="ALWAYS"/>
+            <Button onAction="#onRefreshHistory" styleClass="secondary-button" text="⟳ History"/>
+        </VBox>
+
+        <VBox spacing="12.0" styleClass="card" HBox.hgrow="ALWAYS">
+            <Label styleClass="section-title" text="Your question"/>
+            <TextArea fx:id="questionField" prefRowCount="4" wrapText="true"/>
+            <Button onAction="#onAsk" styleClass="primary-button" text="Ask study bot"/>
+            <Label styleClass="section-title" text="Answer"/>
+            <TextArea fx:id="answerArea" editable="false" prefRowCount="8" wrapText="true" VBox.vgrow="ALWAYS"/>
+            <Label fx:id="statusLabel" styleClass="field-label" text=""/>
+        </VBox>
+    </HBox>
+</VBox>

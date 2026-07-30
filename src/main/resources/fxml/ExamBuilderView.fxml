@@ -37,6 +37,7 @@
                     <VBox prefWidth="320.0" spacing="8.0" styleClass="card">
                         <Label styleClass="section-title" text="Question bank"/>
                         <ComboBox fx:id="courseBox" maxWidth="Infinity" promptText="Course"/>
+                        <ComboBox fx:id="topicBox" maxWidth="Infinity" promptText="Topic"/>
                         <Button maxWidth="Infinity" onAction="#onLoadBank"
                                 styleClass="secondary-button" text="Load questions"/>
                         <ListView fx:id="bankList" styleClass="questions-list" VBox.vgrow="ALWAYS"/>
@@ -77,8 +78,14 @@
                     <Label styleClass="section-title" text="Auto-generate from bank"/>
                     <Label wrapText="true"
                            text="Define requirements by topic and difficulty. Total points must equal 100. If the pool is too small, the server returns an error and no exam is created."/>
+                    <Label styleClass="field-label" text="COURSE"/>
+                    <ComboBox fx:id="autoCourseBox" maxWidth="Infinity" promptText="Select course"/>
+                    <Label styleClass="field-label" text="TITLE"/>
+                    <TextField fx:id="autoTitleField" promptText="Exam title"/>
+                    <Label styleClass="field-label" text="DURATION (MINUTES)"/>
+                    <TextField fx:id="autoDurationField" promptText="60" text="60"/>
                     <HBox spacing="10.0">
-                        <TextField fx:id="autoTopic" promptText="Topic" prefWidth="160"/>
+                        <ComboBox fx:id="autoTopic" prefWidth="160" promptText="Topic"/>
                         <ComboBox fx:id="autoDifficulty" prefWidth="120" promptText="Difficulty"/>
                         <TextField fx:id="autoCount" promptText="Count" prefWidth="70" text="2"/>
                         <TextField fx:id="autoPts" promptText="Pts each" prefWidth="80" text="25"/>

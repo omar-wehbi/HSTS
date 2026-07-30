@@ -39,6 +39,9 @@ public class ExamRelease implements Serializable {
     @Column(name = "created_at", insertable = false, updatable = false)
     private LocalDateTime createdAt;
 
+    @Transient
+    private String examTitle;
+
     public ExamRelease() { }
 
     public ExamRelease(int examId,
@@ -73,6 +76,9 @@ public class ExamRelease implements Serializable {
 
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
+
+    public String getExamTitle() { return examTitle; }
+    public void setExamTitle(String examTitle) { this.examTitle = examTitle; }
 
     public boolean isOpenAt(LocalDateTime time) {
         return time != null

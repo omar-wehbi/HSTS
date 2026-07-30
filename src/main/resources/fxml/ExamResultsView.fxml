@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.control.ListView?>
+<?import javafx.scene.control.TextArea?>
+<?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.Region?>
+<?import javafx.scene.layout.VBox?>
+<?import javafx.scene.shape.Circle?>
+
+<VBox prefHeight="640.0" prefWidth="1000.0"
+      xmlns="http://javafx.com/javafx" xmlns:fx="http://javafx.com/fxml">
+
+    <HBox styleClass="header-bar">
+        <VBox spacing="2.0">
+            <Label styleClass="header-title" text="HSTS · Exam Results"/>
+            <Label styleClass="header-subtitle" text="Statistics and histogram for released exams"/>
+        </VBox>
+        <Region HBox.hgrow="ALWAYS"/>
+        <Button onAction="#onBackToMenu" styleClass="header-button" text="← Menu"/>
+        <HBox styleClass="status-pill">
+            <Circle radius="5.0" styleClass="status-dot"/>
+            <Label text="Connected"/>
+        </HBox>
+    </HBox>
+
+    <HBox styleClass="body" VBox.vgrow="ALWAYS">
+        <VBox prefWidth="300.0" spacing="12.0" styleClass="card">
+            <Label styleClass="section-title" text="Released exams"/>
+            <ListView fx:id="releaseList" styleClass="questions-list" VBox.vgrow="ALWAYS"/>
+            <Button onAction="#onRefresh" styleClass="secondary-button" text="⟳ Refresh"/>
+        </VBox>
+
+        <VBox spacing="12.0" styleClass="card" HBox.hgrow="ALWAYS">
+            <Label fx:id="titleLabel" styleClass="section-title" text="Select a release"/>
+            <Label fx:id="statsLabel" styleClass="field-label" text=""/>
+            <TextArea fx:id="rowsArea" editable="false" prefRowCount="8" wrapText="true"/>
+            <Label styleClass="section-title" text="Score histogram"/>
+            <TextArea fx:id="histogramArea" editable="false" prefRowCount="6" wrapText="true"/>
+            <Label fx:id="statusLabel" styleClass="field-label" text=""/>
+        </VBox>
+    </HBox>
+</VBox>
