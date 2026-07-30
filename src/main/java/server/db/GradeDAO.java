@@ -120,6 +120,22 @@ public class GradeDAO {
         } catch(Exception e){System.err.println("[GradeDAO] getVisibleByRelease failed: "+e.getMessage());return java.util.List.of();}
     }
 
+    /** All grades for sessions of one release (including AUTO_GRADED), for the teacher grading UI. */
+    public java.util.List<Grade> getByRelease(int releaseId) {
+        try (Session session = HibernateUtil.getSessionFactory().openSession()) {
+            return session.createQuery(
+                            "SELECT g FROM Grade g, ExamSession es "
+                                    + "WHERE g.sessionId = es.id AND es.releaseId = :r "
+                                    + "ORDER BY g.studentId, g.id",
+                            Grade.class)
+                    .setParameter("r", releaseId)
+                    .list();
+        } catch (Exception e) {
+            System.err.println("[GradeDAO] getByRelease failed: " + e.getMessage());
+            return java.util.List.of();
+        }
+    }
+
     /** Every computerized grade for one exam, used by its author. */
     public java.util.List<Grade> getByExamId(int examId) {
         try (Session session = HibernateUtil.getSessionFactory().openSession()) {

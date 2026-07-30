@@ -1,5 +1,6 @@
 package client.network;
 
+import client.events.ClientConnectionEvent;
 import client.events.ClientEventBus;
 import client.events.ServerMessageEvent;
 import common.network.Message;
@@ -86,10 +87,22 @@ public class HSTSClient extends AbstractClient implements IClientConnection {
     @Override
     protected void connectionClosed() {
         System.out.println("[HSTSClient] Connection closed.");
+        notifyConnectionLost("Connection to the server was closed.");
     }
 
     @Override
     protected void connectionException(Exception exception) {
-        System.err.println("[HSTSClient] Connection exception: " + exception.getMessage());
+        String detail = exception == null ? null : exception.getMessage();
+        System.err.println("[HSTSClient] Connection exception: " + detail);
+        if (exception != null) {
+            exception.printStackTrace();
+        }
+        notifyConnectionLost(detail == null || detail.isBlank()
+                ? "Connection to the server was lost."
+                : detail);
+    }
+
+    private void notifyConnectionLost(String reason) {
+        Platform.runLater(() -> ClientEventBus.post(new ClientConnectionEvent(reason)));
     }
 }

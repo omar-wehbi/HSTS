@@ -5,7 +5,9 @@ import org.hibernate.Session;
 import org.hibernate.Transaction;
 
 import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /** Persistence operations for scheduled exam releases. */
 public class ExamReleaseDAO {
@@ -29,7 +31,11 @@ public class ExamReleaseDAO {
 
     public ExamRelease getById(int releaseId) {
         try (Session session = HibernateUtil.getSessionFactory().openSession()) {
-            return session.get(ExamRelease.class, releaseId);
+            ExamRelease release = session.get(ExamRelease.class, releaseId);
+            if (release != null) {
+                loadExamTitles(session, List.of(release));
+            }
+            return release;
         } catch (Exception exception) {
             System.err.println("[ExamReleaseDAO] getById failed: " + exception.getMessage());
             return null;
@@ -107,10 +113,12 @@ public class ExamReleaseDAO {
 
     public List<ExamRelease> getAll() {
         try (Session session = HibernateUtil.getSessionFactory().openSession()) {
-            return session.createQuery(
+            List<ExamRelease> list = session.createQuery(
                             "FROM ExamRelease ORDER BY openTime DESC",
                             ExamRelease.class)
                     .list();
+            loadExamTitles(session, list);
+            return list;
         } catch (Exception exception) {
             System.err.println("[ExamReleaseDAO] getAll failed: " + exception.getMessage());
             return List.of();
@@ -119,16 +127,32 @@ public class ExamReleaseDAO {
 
     public List<ExamRelease> getByTeacher(int teacherId) {
         try (Session session = HibernateUtil.getSessionFactory().openSession()) {
-            return session.createQuery(
+            List<ExamRelease> list = session.createQuery(
                             "FROM ExamRelease WHERE releasedBy = :teacherId "
                                     + "ORDER BY openTime DESC",
                             ExamRelease.class)
                     .setParameter("teacherId", teacherId)
                     .list();
+            loadExamTitles(session, list);
+            return list;
         } catch (Exception exception) {
             System.err.println("[ExamReleaseDAO] getByTeacher failed: "
                     + exception.getMessage());
             return List.of();
+        }
+    }
+
+    private void loadExamTitles(Session session, List<ExamRelease> releases) {
+        if (releases == null || releases.isEmpty()) return;
+        @SuppressWarnings("unchecked")
+        List<Object[]> rows = session.createNativeQuery(
+                "SELECT id, title FROM Exams", Object[].class).list();
+        Map<Integer, String> map = new HashMap<>();
+        for (Object[] row : rows) {
+            map.put(((Number) row[0]).intValue(), (String) row[1]);
+        }
+        for (ExamRelease r : releases) {
+            r.setExamTitle(map.getOrDefault(r.getExamId(), "Exam #" + r.getExamId()));
         }
     }
 }

@@ -37,6 +37,7 @@ public class Message implements Serializable {
         GET_EXAM,                // payload: Integer examId -> SUCCESS: Exam
         GET_MY_EXAMS,            // payload: null -> SUCCESS: List<Exam>
         GENERATE_EXAM_AUTO,       // payload: AutoExamRequest -> SUCCESS: generated Exam
+        DELETE_EXAM,              // payload: Integer examId -> SUCCESS: Integer (deleted examId)
 
         // ----- Exam approval: client -> server -----
         GET_PENDING_EXAMS,          // payload: null -> SUCCESS: List<Exam>
@@ -55,6 +56,8 @@ public class Message implements Serializable {
         GET_EXAM_SESSION,            // payload: Integer sessionId -> SUCCESS: ExamSession
         EXTEND_EXAM_TIME,             // payload: ExtendExamTimeRequest -> SUCCESS: number extended
         GET_EXECUTION_SUMMARY,        // payload: Integer releaseId -> SUCCESS: ExamExecutionSummary
+        GET_RELEASE_SESSIONS,         // payload: Integer releaseId -> SUCCESS: List<ExamSession>
+        GET_RELEASE_GRADES,           // payload: Integer releaseId -> SUCCESS: List<Grade>
 
         // ----- Grading -----
         GRADE_EXAM_AUTO,             // payload: Integer sessionId -> SUCCESS: Grade

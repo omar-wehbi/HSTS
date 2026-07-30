@@ -22,7 +22,7 @@ import java.util.List;
  * show a menu appropriate to the user's role").
  *
  * <p>Teacher: Question Bank + Build Exams. Coordinator: Approve Exams.
- * Scenarios 5–14 remain "coming soon" until Person 4's server APIs land.
+ * Teacher/student/principal flows for scenarios 5–14 are wired below.
  */
 public class HomeView extends AbstractScreenUI {
 
@@ -97,19 +97,30 @@ public class HomeView extends AbstractScreenUI {
                         () -> ScreenManager.getInstance().setScreen(new QuestionsView())));
                 entries.add(new HomeMenuEntry("Build Exams", true,
                         () -> ScreenManager.getInstance().setScreen(new ExamListView())));
-                entries.add(new HomeMenuEntry("Grade Exams", false, null));
-                entries.add(new HomeMenuEntry("Exam Results", false, null));
+                entries.add(new HomeMenuEntry("Release Exams", true,
+                        () -> ScreenManager.getInstance().setScreen(new ExamReleaseView())));
+                entries.add(new HomeMenuEntry("Grade Exams", true,
+                        () -> ScreenManager.getInstance().setScreen(new GradeExamsView())));
+                entries.add(new HomeMenuEntry("Exam Results", true,
+                        () -> ScreenManager.getInstance().setScreen(new ExamResultsView())));
+                entries.add(new HomeMenuEntry("Study Bot", true,
+                        () -> ScreenManager.getInstance().setScreen(new StudyBotTeacherView())));
             }
             case COORDINATOR -> entries.add(new HomeMenuEntry("Approve Exams", true,
                     () -> ScreenManager.getInstance().setScreen(new ExamApprovalView())));
             case PRINCIPAL -> {
-                entries.add(new HomeMenuEntry("View Data", false, null));
-                entries.add(new HomeMenuEntry("Reports", false, null));
+                entries.add(new HomeMenuEntry("View Data", true,
+                        () -> ScreenManager.getInstance().setScreen(new PrincipalDataView())));
+                entries.add(new HomeMenuEntry("Reports", true,
+                        () -> ScreenManager.getInstance().setScreen(new PrincipalReportsView())));
             }
             case STUDENT -> {
-                entries.add(new HomeMenuEntry("Take Exam", false, null));
-                entries.add(new HomeMenuEntry("My Grades", false, null));
-                entries.add(new HomeMenuEntry("Study Bot", false, null));
+                entries.add(new HomeMenuEntry("Take Exam", true,
+                        () -> ScreenManager.getInstance().setScreen(new TakeExamView())));
+                entries.add(new HomeMenuEntry("My Grades", true,
+                        () -> ScreenManager.getInstance().setScreen(new StudentGradesView())));
+                entries.add(new HomeMenuEntry("Study Bot", true,
+                        () -> ScreenManager.getInstance().setScreen(new StudyBotStudentView())));
             }
         }
         return entries;

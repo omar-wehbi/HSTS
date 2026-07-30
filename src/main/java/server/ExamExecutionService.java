@@ -3,6 +3,11 @@ package server;
 import common.entities.*;
 import common.network.*;
 import server.db.ExamDAO;
+import server.db.ExamReleaseDAO;
+import server.db.ExamSessionDAO;
+import server.db.ExamSnapshotDAO;
+import server.db.ExamSnapshotQuestion;
+import server.db.ExecutionReportDAO;
 import server.db.QuestionDAO;
 import server.db.UserDAO;
 
@@ -29,6 +34,22 @@ public class ExamExecutionService {
  public Message getSession(User caller,Object payload){Authorization.requireRole(caller,Role.STUDENT,Role.TEACHER);if(!(payload instanceof Integer)||(Integer)payload<=0)return error("GET_EXAM_SESSION requires a valid session ID.");sessionDAO.expireOverdueSessions(LocalDateTime.now(clock));ExamSession at=sessionDAO.getById((Integer)payload);if(at==null)return error("Exam session was not found.");if(caller.getRole()==Role.STUDENT&&at.getStudentId()!=caller.getId())throw new AuthorizationException("You may only view your own exam session.");if(caller.getRole()==Role.TEACHER){Exam e=examDAO.getById(at.getExamId());if(e==null||e.getTeacherId()!=caller.getId())throw new AuthorizationException("You may only view sessions for exams that you authored.");}return success(at);}
  public Message extend(User caller,Object payload){Authorization.requireRole(caller,Role.TEACHER);if(!(payload instanceof ExtendExamTimeRequest))return error("EXTEND_EXAM_TIME requires an ExtendExamTimeRequest payload.");ExtendExamTimeRequest r=(ExtendExamTimeRequest)payload;if(r.getReleaseId()<=0||r.getExtraMinutes()<=0||r.getExtraMinutes()>180)return error("Extension must be between 1 and 180 minutes.");LocalDateTime now=LocalDateTime.now(clock);ExamRelease rel=releaseDAO.getById(r.getReleaseId());if(rel==null)return error("Exam release was not found.");if(rel.getReleasedBy()!=caller.getId())throw new AuthorizationException("You may only extend an exam that you released.");if(now.isBefore(rel.getOpenTime())||now.isAfter(rel.getCloseTime()))return error("Exam time can be extended only while the release is live.");sessionDAO.expireOverdueSessions(now);int n=sessionDAO.extendActiveSessions(rel.getId(),r.getExtraMinutes(),now);return n<=0?error(n==0?"There are no active sessions to extend.":"Could not extend the exam time."):success(Integer.valueOf(n));}
  public Message summary(User caller,Object payload){Authorization.requireRole(caller,Role.TEACHER,Role.COORDINATOR,Role.PRINCIPAL);if(!(payload instanceof Integer)||(Integer)payload<=0)return error("A valid release ID is required.");ExamExecutionSummary s=reportDAO.summary((Integer)payload);if(s==null)return error("Exam execution was not found.");Exam e=examDAO.getById(s.getExamId());if(e==null)return error("Exam was not found.");if(caller.getRole()==Role.TEACHER){ExamRelease rel=releaseDAO.getById(s.getReleaseId());if(rel==null)return error("Exam release was not found.");if(e.getTeacherId()!=caller.getId()&&rel.getReleasedBy()!=caller.getId())throw new AuthorizationException("You may only view executions you authored or administered.");}return success(s);}
+ public Message sessionsForRelease(User caller,Object payload){
+  Authorization.requireRole(caller,Role.TEACHER,Role.COORDINATOR,Role.PRINCIPAL);
+  if(!(payload instanceof Integer)||(Integer)payload<=0)return error("A valid release ID is required.");
+  int releaseId=(Integer)payload;
+  ExamRelease rel=releaseDAO.getById(releaseId);
+  if(rel==null)return error("Exam release was not found.");
+  Exam e=examDAO.getById(rel.getExamId());
+  if(e==null)return error("Exam was not found.");
+  if(caller.getRole()==Role.TEACHER
+          &&e.getTeacherId()!=caller.getId()
+          &&rel.getReleasedBy()!=caller.getId()){
+   throw new AuthorizationException("You may only view sessions for executions you authored or administered.");
+  }
+  sessionDAO.expireOverdueSessions(LocalDateTime.now(clock));
+  return success((Serializable)sessionDAO.getByRelease(releaseId));
+ }
   private ExamForm buildForm(ExamSession at,Exam exam){
   List<ExamSnapshotQuestion> snap=snapshotDAO.getByRelease(at.getReleaseId());
   if(snap.isEmpty())throw new IllegalStateException("The released exam has no preserved questions.");

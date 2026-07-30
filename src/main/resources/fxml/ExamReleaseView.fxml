@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.DatePicker?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.control.ListView?>
+<?import javafx.scene.control.TextArea?>
+<?import javafx.scene.control.TextField?>
+<?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.Region?>
+<?import javafx.scene.layout.VBox?>
+<?import javafx.scene.shape.Circle?>
+
+<VBox prefHeight="640.0" prefWidth="1000.0"
+      xmlns="http://javafx.com/javafx" xmlns:fx="http://javafx.com/fxml">
+
+    <HBox styleClass="header-bar">
+        <VBox spacing="2.0">
+            <Label styleClass="header-title" text="HSTS · Release Exams"/>
+            <Label styleClass="header-subtitle" text="Schedule approved exams and extend live sessions"/>
+        </VBox>
+        <Region HBox.hgrow="ALWAYS"/>
+        <Button onAction="#onBackToMenu" styleClass="header-button" text="← Menu"/>
+        <HBox styleClass="status-pill">
+            <Circle radius="5.0" styleClass="status-dot"/>
+            <Label text="Connected"/>
+        </HBox>
+    </HBox>
+
+    <HBox styleClass="body" VBox.vgrow="ALWAYS">
+        <VBox prefWidth="320.0" spacing="12.0" styleClass="card">
+            <Label styleClass="section-title" text="Approved exams"/>
+            <ListView fx:id="approvedList" styleClass="questions-list" VBox.vgrow="ALWAYS"/>
+            <Button onAction="#onRefreshApproved" styleClass="secondary-button" text="⟳ Refresh"/>
+        </VBox>
+
+        <VBox spacing="12.0" styleClass="card" prefWidth="320.0">
+            <Label styleClass="section-title" text="Release new exam"/>
+            <Label fx:id="selectedExamLabel" styleClass="field-label" text="Selected: (none)"/>
+            <Label styleClass="field-label" text="4-digit execution code"/>
+            <TextField fx:id="codeField" promptText="0042"/>
+            <Label styleClass="field-label" text="Open date"/>
+            <DatePicker fx:id="openDatePicker"/>
+            <Label styleClass="field-label" text="Open time (HH:mm)"/>
+            <TextField fx:id="openTimeField" promptText="09:00"/>
+            <Label styleClass="field-label" text="Close (auto from exam duration)"/>
+            <Label fx:id="closePreviewLabel" styleClass="field-label" text="—"/>
+            <Button fx:id="releaseButton" disable="true" onAction="#onRelease"
+                    styleClass="primary-button" text="Release exam"/>
+        </VBox>
+
+        <VBox spacing="12.0" styleClass="card" HBox.hgrow="ALWAYS">
+            <HBox alignment="CENTER_LEFT" spacing="8.0">
+                <Label styleClass="section-title" text="Released exams"/>
+                <Region HBox.hgrow="ALWAYS"/>
+                <Button onAction="#onRefreshReleases" styleClass="secondary-button" text="⟳ Refresh"/>
+            </HBox>
+            <ListView fx:id="releaseList" prefHeight="120.0" styleClass="questions-list"/>
+            <HBox spacing="8.0">
+                <TextField fx:id="extendMinutesField" promptText="Minutes (1–180)" HBox.hgrow="ALWAYS"/>
+                <Button onAction="#onExtend" styleClass="secondary-button" text="Extend time"/>
+            </HBox>
+            <Label styleClass="field-label" text="Execution summary"/>
+            <TextArea fx:id="summaryArea" editable="false" prefRowCount="8" wrapText="true" VBox.vgrow="ALWAYS"/>
+            <Label fx:id="statusLabel" styleClass="field-label" text=""/>
+        </VBox>
+    </HBox>
+</VBox>

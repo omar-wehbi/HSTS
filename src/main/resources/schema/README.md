@@ -26,16 +26,17 @@ never edit the same file and merges stay conflict-free. (Layout owned by Person 
 mysql -u root -p < src/main/resources/seed_test_scenarios.sql
 ```
 
-creates the database, every table (including V3 `Exams` / `ExamQuestions`), and
-deterministic demo data (login accounts: teacher / coord / principal / maya /
-noa — password `1234`; sample DRAFT + PENDING_APPROVAL exams for UI demos).
+creates the database, every table (including V3 exams and Person 4
+release/execution/grading/study-bot tables), and deterministic demo data
+(login accounts: teacher / coord / principal / maya / noa — password `1234`;
+sample DRAFT, PENDING_APPROVAL, and APPROVED exams for UI demos).
 Re-run any time to reset. Then run the tests: `mvnw test` (needs your password
 in `server.properties`).
 
 The numbered `V*.sql` files remain the per-owner schema slices for review and
 incremental upgrades; the seed **duplicates** their DDL so one command is enough.
 When you add a new `VN_….sql`, also fold its `CREATE TABLE` (and demo rows) into
-`seed_test_scenarios.sql`.
+`seed_test_scenarios.sql`. Person 4 slices: `V4`, `V6`–`V10`.
 
 ## Display-id convention (Person 2, Phase 3)
 

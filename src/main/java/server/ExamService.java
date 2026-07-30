@@ -147,7 +147,7 @@ public class ExamService {
         Exam saved = examDAO.create(exam);
 
         return saved != null
-                ? success(saved)
+                ? success(toWireExam(saved))
                 : error("Exam creation failed.");
     }
 
@@ -209,7 +209,7 @@ public class ExamService {
         );
 
         return updated != null
-                ? success(updated)
+                ? success(toWireExam(updated))
                 : error("Exam update failed.");
     }
 
@@ -249,7 +249,7 @@ public class ExamService {
             Exam saved = examDAO.create(generated);
 
             return saved != null
-                    ? success(saved)
+                    ? success(toWireExam(saved))
                     : error("Automatic exam creation failed.");
 
         } catch (IllegalArgumentException exception) {
@@ -304,6 +304,45 @@ public class ExamService {
         return submitted != null
                 ? success(submitted)
                 : error("Submitting the exam failed.");
+    }
+
+    /**
+     * Deletes a draft or rejected exam.
+     *
+     * <p>Payload: Integer exam ID.</p>
+     */
+    public Message delete(User caller, Object payload) {
+        Authorization.requireRole(caller, Role.TEACHER);
+
+        if (!(payload instanceof Integer)) {
+            return error("DELETE_EXAM requires an exam ID (Integer).");
+        }
+
+        int examId = (Integer) payload;
+
+        Exam exam = examDAO.getById(examId);
+
+        if (exam == null) {
+            return error("Exam not found.");
+        }
+
+        if (exam.getTeacherId() != caller.getId()) {
+            throw new AuthorizationException(
+                    "You may only delete exams that you authored."
+            );
+        }
+
+        if (!exam.isEditable()) {
+            return error(
+                    "Only draft or rejected exams can be deleted."
+            );
+        }
+
+        boolean deleted = examDAO.delete(examId);
+
+        return deleted
+                ? success(examId)
+                : error("Exam deletion failed.");
     }
 
     // ===== coordinator actions ===========================================
@@ -436,5 +475,26 @@ public class ExamService {
 
     private static Message error(String reason) {
         return new Message(Command.ERROR, reason);
+    }
+
+    /** Plain copy for OCSF serialization (avoids Hibernate-managed entity state). */
+    private static Exam toWireExam(Exam source) {
+        Exam exam = new Exam();
+        exam.setId(source.getId());
+        exam.setBaseId(source.getBaseId());
+        exam.setVersion(source.getVersion());
+        exam.setCurrent(source.isCurrent());
+        exam.setCourseId(source.getCourseId());
+        exam.setTeacherId(source.getTeacherId());
+        exam.setTitle(source.getTitle());
+        exam.setDurationMinutes(source.getDurationMinutes());
+        exam.setStudentInstructions(source.getStudentInstructions());
+        exam.setTeacherNotes(source.getTeacherNotes());
+        exam.setStatus(source.getStatus());
+        exam.setRejectionReason(source.getRejectionReason());
+        exam.setCoordinatorId(source.getCoordinatorId());
+        exam.setCourseName(source.getCourseName());
+        exam.setQuestions(new java.util.ArrayList<>(source.getQuestions()));
+        return exam;
     }
 }

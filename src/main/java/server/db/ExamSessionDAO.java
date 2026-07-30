@@ -52,6 +52,20 @@ public class ExamSessionDAO {
         }
     }
 
+    /** All attempts for one release, oldest first (no answer payloads). */
+    public List<ExamSession> getByRelease(int releaseId) {
+        try (Session session = HibernateUtil.getSessionFactory().openSession()) {
+            return session.createQuery(
+                            "FROM ExamSession WHERE releaseId=:r ORDER BY id",
+                            ExamSession.class)
+                    .setParameter("r", releaseId)
+                    .list();
+        } catch (Exception e) {
+            System.err.println("[ExamSessionDAO] getByRelease failed: " + e.getMessage());
+            return List.of();
+        }
+    }
+
     public List<StudentAnswer> getAnswers(int sessionId) {
         try (Session session = HibernateUtil.getSessionFactory().openSession()) {
             return session.createQuery("FROM StudentAnswer WHERE sessionId=:id ORDER BY questionId", StudentAnswer.class)

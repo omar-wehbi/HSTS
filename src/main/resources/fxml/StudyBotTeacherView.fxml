@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.CheckBox?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.control.ListView?>
+<?import javafx.scene.control.TextArea?>
+<?import javafx.scene.control.TextField?>
+<?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.Region?>
+<?import javafx.scene.layout.VBox?>
+<?import javafx.scene.shape.Circle?>
+
+<VBox prefHeight="640.0" prefWidth="1000.0"
+      xmlns="http://javafx.com/javafx" xmlns:fx="http://javafx.com/fxml">
+
+    <HBox styleClass="header-bar">
+        <VBox spacing="2.0">
+            <Label styleClass="header-title" text="HSTS · Study Bot (Teacher)"/>
+            <Label styleClass="header-subtitle" text="Create bots, manage sources, view usage"/>
+        </VBox>
+        <Region HBox.hgrow="ALWAYS"/>
+        <Button onAction="#onBackToMenu" styleClass="header-button" text="← Menu"/>
+        <HBox styleClass="status-pill">
+            <Circle radius="5.0" styleClass="status-dot"/>
+            <Label text="Connected"/>
+        </HBox>
+    </HBox>
+
+    <HBox styleClass="body" VBox.vgrow="ALWAYS">
+        <VBox prefWidth="300.0" spacing="10.0" styleClass="card">
+            <Label styleClass="section-title" text="Bot setup"/>
+            <TextField fx:id="courseIdField" promptText="Course ID"/>
+            <TextField fx:id="botNameField" promptText="Bot name"/>
+            <CheckBox fx:id="includeBankCheck" text="Include question bank"/>
+            <Button onAction="#onCreate" styleClass="primary-button" text="Create study bot"/>
+            <HBox spacing="8.0">
+                <Button onAction="#onActivate" styleClass="secondary-button" text="Activate"/>
+                <Button onAction="#onDeactivate" styleClass="secondary-button" text="Deactivate"/>
+            </HBox>
+            <Button onAction="#onLoadBot" styleClass="secondary-button" text="Refresh bot info"/>
+            <Label fx:id="botInfoLabel" styleClass="field-label" wrapText="true" text=""/>
+        </VBox>
+
+        <VBox spacing="10.0" styleClass="card" prefWidth="320.0">
+            <Label styleClass="section-title" text="Sources"/>
+            <TextField fx:id="sourceTitleField" promptText="Source title"/>
+            <TextArea fx:id="sourceContentField" prefRowCount="4" promptText="Source text" wrapText="true"/>
+            <Button onAction="#onAddSource" styleClass="primary-button" text="Add source"/>
+            <ListView fx:id="sourcesList" prefHeight="120.0" styleClass="questions-list"/>
+            <Button onAction="#onDeleteSource" styleClass="secondary-button" text="Delete selected"/>
+            <Button onAction="#onRefreshSources" styleClass="secondary-button" text="⟳ Sources"/>
+        </VBox>
+
+        <VBox spacing="10.0" styleClass="card" HBox.hgrow="ALWAYS">
+            <Label styleClass="section-title" text="Usage report"/>
+            <Button onAction="#onLoadUsage" styleClass="secondary-button" text="Load usage"/>
+            <TextArea fx:id="usageArea" editable="false" prefRowCount="14" wrapText="true" VBox.vgrow="ALWAYS"/>
+            <Label fx:id="statusLabel" styleClass="field-label" text=""/>
+        </VBox>
+    </HBox>
+</VBox>

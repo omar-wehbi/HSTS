@@ -74,6 +74,9 @@ public class Exam implements Serializable {
     @Column(name = "rejection_reason")
     private String rejectionReason;
 
+    @Transient
+    private String courseName;
+
     @Column(name = "coordinator_id")
     private Integer coordinatorId;
 
@@ -223,6 +226,14 @@ public class Exam implements Serializable {
 
     public void setCoordinatorId(Integer coordinatorId) {
         this.coordinatorId = coordinatorId;
+    }
+
+    public String getCourseName() {
+        return courseName;
+    }
+
+    public void setCourseName(String courseName) {
+        this.courseName = courseName;
     }
 
     public List<ExamQuestion> getQuestions() {

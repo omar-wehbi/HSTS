@@ -4,6 +4,7 @@ import common.network.ExamExecutionSummary;
 import org.hibernate.Session;
 import org.hibernate.Transaction;
 
+import java.sql.Timestamp;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -28,7 +29,7 @@ public class ExecutionReportDAO {
             if (row == null) return null;
             return new ExamExecutionSummary(
                     number(row[0]), number(row[1]), requiredText(row[2], "exam title"),
-                    (LocalDateTime) row[3], (LocalDateTime) row[4], number(row[5]),
+                    time(row[3]), time(row[4]), number(row[5]),
                     number(row[6]), number(row[7]), number(row[8]));
         } catch (Exception exception) {
             throw new IllegalStateException("Could not load the exam execution summary.", exception);
@@ -71,8 +72,15 @@ public class ExecutionReportDAO {
     }
 
     private static int number(Object value) {
+        if (value == null) return 0;
         if (!(value instanceof Number)) throw new IllegalStateException("Expected a numeric database value.");
         return ((Number) value).intValue();
+    }
+
+    private static LocalDateTime time(Object value) {
+        if (value instanceof Timestamp ts) return ts.toLocalDateTime();
+        if (value instanceof LocalDateTime ldt) return ldt;
+        throw new IllegalStateException("Expected a datetime value.");
     }
 
     private static String requiredText(Object value, String field) {

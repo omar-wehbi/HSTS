@@ -7,19 +7,19 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/**
- * Home menu wiring for Person 5 scenarios 1–4 (enabled vs coming-soon).
- *
- * <p>Uses the package-visible {@link HomeView#menuLabelsFor(Role)} helper so we
- * do not need a JavaFX toolkit to verify role menus.
- */
 class HomeViewNavigationTest {
 
     @Test
-    void teacherMenuEnablesBuildExamsAndBank() {
+    void teacherMenuEnablesAllTeacherFlows() {
         List<String> labels = HomeView.menuLabelsFor(Role.TEACHER);
-        assertThat(labels).contains("Question Bank", "Build Exams");
-        assertThat(labels).anyMatch(s -> s.contains("Grade Exams") && s.contains("coming soon"));
+        assertThat(labels).containsExactly(
+                "Question Bank",
+                "Build Exams",
+                "Release Exams",
+                "Grade Exams",
+                "Exam Results",
+                "Study Bot");
+        assertThat(labels).noneMatch(s -> s.contains("coming soon"));
     }
 
     @Test
@@ -29,8 +29,16 @@ class HomeViewNavigationTest {
     }
 
     @Test
-    void studentMenuStillComingSoon() {
+    void principalMenuEnablesDataAndReports() {
+        List<String> labels = HomeView.menuLabelsFor(Role.PRINCIPAL);
+        assertThat(labels).containsExactly("View Data", "Reports");
+        assertThat(labels).noneMatch(s -> s.contains("coming soon"));
+    }
+
+    @Test
+    void studentMenuEnablesExamGradesAndBot() {
         List<String> labels = HomeView.menuLabelsFor(Role.STUDENT);
-        assertThat(labels).allMatch(s -> s.contains("coming soon"));
+        assertThat(labels).containsExactly("Take Exam", "My Grades", "Study Bot");
+        assertThat(labels).noneMatch(s -> s.contains("coming soon"));
     }
 }
