@@ -4,6 +4,7 @@ import common.entities.ExamRelease;
 import common.entities.Grade;
 import common.entities.GradeStatus;
 import common.network.ApproveGradeRequest;
+import common.network.ExamExecutionSummary;
 import common.network.Message;
 import common.network.Message.Command;
 import common.network.OverrideGradeRequest;
@@ -96,6 +97,92 @@ class GradeExamsSessionTest {
         r.setId(9);
         session.onServerMessage(new Message(Command.SUCCESS, List.of(r)));
         assertThat(session.getReleases()).hasSize(1);
+    }
+
+    @Test
+    void errorMessageSetsLastErrorAndClearsAwaiting() {
+        session.requestSessions(9);
+        assertThat(session.isAwaitingSessions()).isTrue();
+        session.onServerMessage(new Message(Command.ERROR, "Not the exam author."));
+        assertThat(session.isAwaitingSessions()).isFalse();
+        assertThat(session.getLastError()).isEqualTo("Not the exam author.");
+        assertThat(session.getStatusText()).isEqualTo("Server error.");
+    }
+
+    @Test
+    void idGuardsRejectNonPositiveIds() {
+        assertThat(session.requestSessions(0)).isNull();
+        assertThat(session.getLastError()).contains("Select a release");
+
+        assertThat(session.requestGrades(-1)).isNull();
+        assertThat(session.getLastError()).contains("Select a release");
+
+        assertThat(session.requestExecutionSummary(0)).isNull();
+        assertThat(session.getLastError()).contains("Select a release");
+
+        assertThat(session.requestApprove(0, "ok")).isNull();
+        assertThat(session.getLastError()).contains("Select or grade");
+
+        assertThat(session.requestOverride(0, 50, "reason")).isNull();
+        assertThat(session.getLastError()).contains("Select or grade");
+    }
+
+    @Test
+    void emptyListsClearPriorData() {
+        session.requestSessions(9);
+        common.entities.ExamSession s = new common.entities.ExamSession();
+        s.setId(42);
+        session.onServerMessage(new Message(Command.SUCCESS, List.of(s)));
+        assertThat(session.getSessions()).hasSize(1);
+
+        session.requestSessions(9);
+        session.onServerMessage(new Message(Command.SUCCESS, List.of()));
+        assertThat(session.getSessions()).isEmpty();
+        assertThat(session.getStatusText()).contains("0 session");
+
+        session.requestGrades(9);
+        session.onServerMessage(new Message(Command.SUCCESS, List.of()));
+        assertThat(session.getGrades()).isEmpty();
+
+        session.requestReleasedExams();
+        session.onServerMessage(new Message(Command.SUCCESS, List.of()));
+        assertThat(session.getReleases()).isEmpty();
+    }
+
+    @Test
+    void executionSummaryStoredOnSuccess() {
+        Message req = session.requestExecutionSummary(9);
+        assertThat(req.getCommand()).isEqualTo(Command.GET_EXECUTION_SUMMARY);
+
+        ExamExecutionSummary summary = new ExamExecutionSummary(
+                9, 2, "Quiz", LocalDateTime.now(), LocalDateTime.now().plusHours(1),
+                60, 3, 2, 1);
+        session.onServerMessage(new Message(Command.SUCCESS, summary));
+        assertThat(session.getExecutionSummary()).isSameAs(summary);
+        assertThat(session.getStatusText()).contains("Execution summary");
+    }
+
+    @Test
+    void approveAndOverrideReplaceExistingGrade() {
+        session.requestGrades(9);
+        Grade first = grade(11, 42, 70);
+        session.onServerMessage(new Message(Command.SUCCESS, List.of(first)));
+        assertThat(session.getGrades()).hasSize(1);
+
+        Grade approved = grade(11, 42, 70);
+        approved.setStatus(GradeStatus.APPROVED);
+        session.requestApprove(11, "ok");
+        session.onServerMessage(new Message(Command.SUCCESS, approved));
+        assertThat(session.getGrades()).hasSize(1);
+        assertThat(session.getGrades().get(0).getStatus()).isEqualTo(GradeStatus.APPROVED);
+
+        Grade overridden = grade(11, 42, 70);
+        overridden.setStatus(GradeStatus.OVERRIDDEN);
+        overridden.setFinalScore(90);
+        session.requestOverride(11, 90, "curve");
+        session.onServerMessage(new Message(Command.SUCCESS, overridden));
+        assertThat(session.getGrades()).hasSize(1);
+        assertThat(session.getGrades().get(0).getEffectiveScore()).isEqualTo(90);
     }
 
     private static Grade grade(int id, int sessionId, int score) {

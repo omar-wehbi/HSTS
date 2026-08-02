@@ -64,4 +64,33 @@ class ExamResultsSessionTest {
         session.onServerMessage(new Message(Command.SUCCESS, List.of(r)));
         assertThat(session.getReleases()).hasSize(1);
     }
+
+    @Test
+    void errorMessageSetsLastError() {
+        session.requestStatistics(7);
+        session.onServerMessage(new Message(Command.ERROR, "Not the exam author."));
+        assertThat(session.getLastError()).isEqualTo("Not the exam author.");
+        assertThat(session.getStatusText()).isEqualTo("Server error.");
+        assertThat(session.getResults()).isNull();
+    }
+
+    @Test
+    void emptyReleasesList() {
+        session.requestReleasedExams();
+        session.onServerMessage(new Message(Command.SUCCESS, List.of()));
+        assertThat(session.getReleases()).isEmpty();
+        assertThat(session.getStatusText()).contains("0 release");
+    }
+
+    @Test
+    void formatHistogramNullOrEmpty() {
+        assertThat(ExamResultsSession.formatHistogram(null)).isEqualTo("(no data)");
+        assertThat(ExamResultsSession.formatHistogram(List.of())).isEqualTo("(no data)");
+    }
+
+    @Test
+    void nullServerMessageIsIgnored() {
+        session.onServerMessage(null);
+        assertThat(session.getLastError()).isNull();
+    }
 }

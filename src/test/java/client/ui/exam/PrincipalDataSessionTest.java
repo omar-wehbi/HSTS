@@ -49,4 +49,31 @@ class PrincipalDataSessionTest {
         session.onServerMessage(new Message(Command.SUCCESS, ro));
         assertThat(session.getReadOnlyData()).isSameAs(ro);
     }
+
+    @Test
+    void errorMessageSetsLastError() {
+        session.requestPrincipalData();
+        session.onServerMessage(new Message(Command.ERROR, "Principals only."));
+        assertThat(session.getLastError()).isEqualTo("Principals only.");
+        assertThat(session.getStatusText()).isEqualTo("Server error.");
+        assertThat(session.getPrincipalData()).isNull();
+    }
+
+    @Test
+    void nullServerMessageIsIgnored() {
+        session.onServerMessage(null);
+        assertThat(session.getLastError()).isNull();
+        assertThat(session.getPrincipalData()).isNull();
+        assertThat(session.getReadOnlyData()).isNull();
+    }
+
+    @Test
+    void emptyCatalogStored() {
+        session.requestPrincipalData();
+        PrincipalData empty = new PrincipalData(List.of(), List.of(), List.of(), 0);
+        session.onServerMessage(new Message(Command.SUCCESS, empty));
+        assertThat(session.getPrincipalData().getTeachers()).isEmpty();
+        assertThat(session.getPrincipalData().getGradedAttempts()).isZero();
+        assertThat(session.getStatusText()).contains("Catalog");
+    }
 }

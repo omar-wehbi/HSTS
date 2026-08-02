@@ -80,6 +80,80 @@ class TakeExamSessionTest {
         assertThat(session.remainingSeconds(now)).isEqualTo(1800);
     }
 
+    @Test
+    void errorMessageClearsAwaitingAndSetsLastError() {
+        session.requestStart("0042", "987654321");
+        assertThat(session.isAwaitingStart()).isTrue();
+
+        session.onServerMessage(new Message(Command.ERROR, "Not enrolled in this course."));
+        assertThat(session.isAwaitingStart()).isFalse();
+        assertThat(session.getLastError()).isEqualTo("Not enrolled in this course.");
+        assertThat(session.getStatusText()).isEqualTo("Server error.");
+        assertThat(session.getExamForm()).isNull();
+    }
+
+    @Test
+    void timedOutSessionMarksSubmitted() {
+        session.onServerMessage(new Message(Command.SUCCESS, sampleForm()));
+        ExamSession timedOut = sampleForm().getSession();
+        timedOut.setStatus(ExamSessionStatus.TIMED_OUT);
+
+        session.onServerMessage(new Message(Command.SUCCESS, timedOut));
+        assertThat(session.isSubmitted()).isTrue();
+        assertThat(session.getStatusText()).contains("submitted");
+        assertThat(session.requestSave()).isNull();
+        assertThat(session.requestSubmit()).isNull();
+    }
+
+    @Test
+    void saveAndSubmitWithoutFormReturnNull() {
+        assertThat(session.requestSave()).isNull();
+        assertThat(session.getLastError()).contains("No active exam session");
+        assertThat(session.requestSubmit()).isNull();
+        assertThat(session.getLastError()).contains("No active exam session");
+    }
+
+    @Test
+    void remainingSecondsEdges() {
+        assertThat(session.remainingSeconds(LocalDateTime.now())).isZero();
+
+        session.onServerMessage(new Message(Command.SUCCESS, sampleForm()));
+        LocalDateTime afterDeadline = LocalDateTime.of(2026, 7, 28, 11, 0);
+        assertThat(session.remainingSeconds(afterDeadline)).isZero();
+
+        ExamSession submitted = sampleForm().getSession();
+        submitted.setStatus(ExamSessionStatus.SUBMITTED);
+        session.onServerMessage(new Message(Command.SUCCESS, submitted));
+        assertThat(session.remainingSeconds(LocalDateTime.of(2026, 7, 28, 10, 0))).isZero();
+    }
+
+    @Test
+    void recordAnswerIgnoresWhenNotEditableOrOutOfRange() {
+        session.recordAnswer(7, 2);
+        assertThat(session.getAnswers()).isEmpty();
+
+        session.onServerMessage(new Message(Command.SUCCESS, sampleForm()));
+        session.recordAnswer(7, 0);
+        session.recordAnswer(7, 5);
+        assertThat(session.getAnswers()).isEmpty();
+
+        session.recordAnswer(7, 3);
+        assertThat(session.getAnswers()).containsEntry(7, 3);
+
+        ExamSession submitted = sampleForm().getSession();
+        submitted.setStatus(ExamSessionStatus.SUBMITTED);
+        session.onServerMessage(new Message(Command.SUCCESS, submitted));
+        session.recordAnswer(7, 1);
+        assertThat(session.getAnswers()).containsEntry(7, 3);
+    }
+
+    @Test
+    void nullServerMessageIsIgnored() {
+        session.onServerMessage(null);
+        assertThat(session.getLastError()).isNull();
+        assertThat(session.getExamForm()).isNull();
+    }
+
     private static ExamForm sampleForm() {
         ExamSession s = new ExamSession(1, 2, 3,
                 LocalDateTime.of(2026, 7, 28, 9, 30),

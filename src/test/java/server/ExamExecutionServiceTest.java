@@ -2,8 +2,11 @@ package server;
 
 import common.entities.*;
 import common.network.ExamExecutionSummary;
+import common.network.ExamForm;
 import common.network.ExtendExamTimeRequest;
 import common.network.Message;
+import common.network.SaveAnswersRequest;
+import common.network.StartExamRequest;
 import common.network.SubmitAnswersRequest;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -260,5 +263,87 @@ class ExamExecutionServiceTest {
         assertThat(coordinatorResponse.getCommand()).isEqualTo(Message.Command.SUCCESS);
         assertThat(principalResponse.getCommand()).isEqualTo(Message.Command.SUCCESS);
         verify(releaseDAO, never()).getById(anyInt());
+    }
+
+    // ----- start / save / submit happy paths --------------------------------
+
+    @Test
+    void startRejectsBadCodeAndMismatchedId() {
+        assertThat(service.start(student, "bad").getCommand()).isEqualTo(Message.Command.ERROR);
+        assertThat(service.start(student, new StartExamRequest("12", "123456789")).getCommand())
+                .isEqualTo(Message.Command.ERROR);
+        assertThat(service.start(student, new StartExamRequest("ABCD", "999")).getCommand())
+                .isEqualTo(Message.Command.ERROR);
+    }
+
+    @Test
+    void startCreatesSessionAndReturnsForm() {
+        ExamRelease release = new ExamRelease(20, 7, "AB12", now.minusMinutes(5), now.plusHours(1));
+        release.setId(10);
+        exam.setCourseId(1);
+        exam.setDurationMinutes(45);
+        exam.setStudentInstructions("Go");
+        when(releaseDAO.getOpenByExecutionCode("AB12", now)).thenReturn(release);
+        when(examDAO.getById(20)).thenReturn(exam);
+        when(userDAO.isEnrolled(50, 1)).thenReturn(true);
+        when(sessionDAO.getByReleaseAndStudent(10, 50)).thenReturn(null);
+        ExamSession created = new ExamSession(10, 20, 50, now, now.plusMinutes(45));
+        created.setId(99);
+        when(sessionDAO.create(any(ExamSession.class))).thenReturn(created);
+        when(snapshotDAO.getByRelease(10)).thenReturn(List.of(
+                new ExamSnapshotQuestion(101, 100, 1, "Q?", "a", "b", "c", "d", 2, null)));
+
+        Message response = service.start(student, new StartExamRequest("AB12", "123456789"));
+        assertThat(response.getCommand()).isEqualTo(Message.Command.SUCCESS);
+        assertThat(response.getPayload()).isInstanceOf(ExamForm.class);
+    }
+
+    @Test
+    void startRejectsWhenNotEnrolledOrAlreadyAttempted() {
+        ExamRelease release = new ExamRelease(20, 7, "AB12", now.minusMinutes(5), now.plusHours(1));
+        release.setId(10);
+        exam.setCourseId(1);
+        when(releaseDAO.getOpenByExecutionCode("AB12", now)).thenReturn(release);
+        when(examDAO.getById(20)).thenReturn(exam);
+        when(userDAO.isEnrolled(50, 1)).thenReturn(false);
+        assertThat(service.start(student, new StartExamRequest("AB12", "123456789")).getCommand())
+                .isEqualTo(Message.Command.ERROR);
+
+        when(userDAO.isEnrolled(50, 1)).thenReturn(true);
+        attempt.setStatus(ExamSessionStatus.SUBMITTED);
+        when(sessionDAO.getByReleaseAndStudent(10, 50)).thenReturn(attempt);
+        assertThat(service.start(student, new StartExamRequest("AB12", "123456789")).getCommand())
+                .isEqualTo(Message.Command.ERROR);
+    }
+
+    @Test
+    void saveAndSubmitHappyPath() {
+        when(sessionDAO.getById(30)).thenReturn(attempt);
+        when(examDAO.getById(20)).thenReturn(exam);
+        when(snapshotDAO.getByRelease(10)).thenReturn(List.of(
+                new ExamSnapshotQuestion(101, 100, 1, "Q?", "a", "b", "c", "d", 2, null)));
+        when(sessionDAO.saveAnswers(eq(30), anyList())).thenReturn(attempt);
+        when(sessionDAO.submit(eq(30), anyList(), eq(now), eq(ExamSessionStatus.SUBMITTED)))
+                .thenReturn(attempt);
+
+        Message saved = service.save(student, new SaveAnswersRequest(30, List.of(new StudentAnswer(101, 2))));
+        assertThat(saved.getCommand()).isEqualTo(Message.Command.SUCCESS);
+
+        Message submitted = service.submit(student,
+                new SubmitAnswersRequest(30, List.of(new StudentAnswer(101, 2))));
+        assertThat(submitted.getCommand()).isEqualTo(Message.Command.SUCCESS);
+    }
+
+    @Test
+    void sessionsForReleaseAuthorisedForTeacher() {
+        ExamRelease release = new ExamRelease(20, 7, "AB12", now.minusMinutes(5), now.plusHours(1));
+        release.setId(10);
+        when(releaseDAO.getById(10)).thenReturn(release);
+        when(examDAO.getById(20)).thenReturn(exam);
+        when(sessionDAO.getByRelease(10)).thenReturn(List.of(attempt));
+
+        Message response = service.sessionsForRelease(teacher, 10);
+        assertThat(response.getCommand()).isEqualTo(Message.Command.SUCCESS);
+        assertThat((List<?>) response.getPayload()).hasSize(1);
     }
 }

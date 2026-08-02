@@ -61,7 +61,8 @@ public final class ClientConfig {
         } catch (Exception ignored) {
             // Fall through to cwd (IDE / exploded classes).
         }
-        return Paths.get(CONFIG_FILE);
+        // Absolute user.dir so tests can redirect via System.setProperty("user.dir", …).
+        return Paths.get(System.getProperty("user.dir", ".")).toAbsolutePath().normalize().resolve(CONFIG_FILE);
     }
 
     private static void loadFromFile(Properties props, Path path) {

@@ -72,4 +72,52 @@ class StudyBotTeacherSessionTest {
         session.onServerMessage(new Message(Command.SUCCESS, view));
         assertThat(session.getBotView().isAvailable()).isFalse();
     }
+
+    @Test
+    void errorMessageSetsLastError() {
+        session.requestCreate(1, "Bot", false);
+        session.onServerMessage(new Message(Command.ERROR, "Not enrolled as teacher."));
+        assertThat(session.getLastError()).isEqualTo("Not enrolled as teacher.");
+        assertThat(session.getStatusText()).isEqualTo("Server error.");
+        assertThat(session.getBotView()).isNull();
+    }
+
+    @Test
+    void emptySourcesListClearsPrior() {
+        session.requestSources(1);
+        StudyBotSourceView source = new StudyBotSourceView(
+                5, 1, "Notes", "Text", 2, LocalDateTime.now());
+        session.onServerMessage(new Message(Command.SUCCESS, List.of(source)));
+        assertThat(session.getSources()).hasSize(1);
+
+        session.requestSources(1);
+        session.onServerMessage(new Message(Command.SUCCESS, List.of()));
+        assertThat(session.getSources()).isEmpty();
+        assertThat(session.getStatusText()).contains("0 source");
+    }
+
+    @Test
+    void deleteSourceRemovesFromListOnSuccess() {
+        assertThat(session.requestDeleteSource(0)).isNull();
+        assertThat(session.getLastError()).contains("Select a source");
+
+        session.requestSources(1);
+        StudyBotSourceView source = new StudyBotSourceView(
+                5, 1, "Notes", "Text", 2, LocalDateTime.now());
+        session.onServerMessage(new Message(Command.SUCCESS, List.of(source)));
+
+        Message del = session.requestDeleteSource(5);
+        assertThat(del.getCommand()).isEqualTo(Command.DELETE_STUDY_BOT_SOURCE);
+        assertThat(del.getPayload()).isEqualTo(5);
+
+        session.onServerMessage(new Message(Command.SUCCESS, 5));
+        assertThat(session.getSources()).isEmpty();
+        assertThat(session.getStatusText()).contains("deleted");
+    }
+
+    @Test
+    void availabilityRejectsNonPositiveCourseId() {
+        assertThat(session.requestSetAvailability(0, true)).isNull();
+        assertThat(session.getLastError()).contains("Course ID");
+    }
 }
