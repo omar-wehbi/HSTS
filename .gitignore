@@ -16,3 +16,10 @@ TEAM_DIVISION.md
 person-*-updates/
 notes.txt
 update-notes.txt
+
+# Local extracts / notes
+*.txt
+features.html
+
+# Local server credentials
+server.properties

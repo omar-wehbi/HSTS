@@ -79,8 +79,9 @@ public final class ServerConfig {
         Path external = resolveExternalConfigPath();
         if (external != null && Files.isRegularFile(external)) {
             loadFromFile(props, external);
-        } else {
-            loadFromClasspath(props);
+            System.out.println("[ServerConfig] loadSettings from " + external.toAbsolutePath());
+        } else if (!loadFromClasspath(props)) {
+            System.out.println("[ServerConfig] No " + CONFIG_FILE + " found — using defaults / hsts.db.*");
         }
         return resolve(props, System.getProperties());
     }
@@ -156,12 +157,20 @@ public final class ServerConfig {
             URI codeSource = ServerConfig.class.getProtectionDomain().getCodeSource().getLocation().toURI();
             Path location = Paths.get(codeSource);
             if (Files.isRegularFile(location)) {
+                // Running from a shaded JAR — file beside the JAR.
                 return location.getParent().resolve(CONFIG_FILE);
             }
         } catch (Exception ignored) {
-            // Fall through to cwd (IDE / exploded classes).
+            // Fall through to cwd / project-root search (IDE / Maven tests).
         }
-        return Paths.get(CONFIG_FILE);
+        // Prefer an absolute path under user.dir so relative resolution cannot
+        // silently miss the file when the JVM cwd is unexpected.
+        Path fromCwd = Paths.get(System.getProperty("user.dir", ".")).toAbsolutePath().normalize()
+                .resolve(CONFIG_FILE);
+        if (Files.isRegularFile(fromCwd)) {
+            return fromCwd;
+        }
+        return Paths.get(CONFIG_FILE).toAbsolutePath().normalize();
     }
 
     private static void loadFromFile(Properties props, Path path) {
