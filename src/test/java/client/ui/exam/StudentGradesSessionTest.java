@@ -55,4 +55,33 @@ class StudentGradesSessionTest {
         session.onServerMessage(new Message(Command.SUCCESS, checked));
         assertThat(session.getCheckedExam()).isSameAs(checked);
     }
+
+    @Test
+    void errorMessageSetsLastError() {
+        session.requestResults();
+        session.onServerMessage(new Message(Command.ERROR, "Students only."));
+        assertThat(session.getLastError()).isEqualTo("Students only.");
+        assertThat(session.getStatusText()).isEqualTo("Server error.");
+    }
+
+    @Test
+    void emptyResultsListClearsPrior() {
+        session.requestResults();
+        StudentResultSummary s = new StudentResultSummary(
+                1, 2, 3, "Quiz", 88, GradeStatus.APPROVED, LocalDateTime.now());
+        session.onServerMessage(new Message(Command.SUCCESS, List.of(s)));
+        assertThat(session.getResults()).hasSize(1);
+
+        session.requestResults();
+        session.onServerMessage(new Message(Command.SUCCESS, List.of()));
+        assertThat(session.getResults()).isEmpty();
+        assertThat(session.getStatusText()).contains("0 result");
+    }
+
+    @Test
+    void nullServerMessageIsIgnored() {
+        session.onServerMessage(null);
+        assertThat(session.getLastError()).isNull();
+        assertThat(session.getResults()).isEmpty();
+    }
 }

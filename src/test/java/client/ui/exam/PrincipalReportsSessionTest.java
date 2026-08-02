@@ -49,4 +49,38 @@ class PrincipalReportsSessionTest {
         assertThat(session.getReport().getGroups()).hasSize(1);
         assertThat(PrincipalReportsSession.formatGroup(group)).contains("Alice");
     }
+
+    @Test
+    void errorMessageSetsLastError() {
+        session.requestReport(ReportDimension.COURSE, "1");
+        session.onServerMessage(new Message(Command.ERROR, "Invalid report dimension."));
+        assertThat(session.getLastError()).isEqualTo("Invalid report dimension.");
+        assertThat(session.getStatusText()).isEqualTo("Server error.");
+        assertThat(session.getReport()).isNull();
+    }
+
+    @Test
+    void emptyReportStored() {
+        session.requestReport(ReportDimension.STUDENT, null);
+        PrincipalReport empty = new PrincipalReport(ReportDimension.STUDENT, List.of());
+        session.onServerMessage(new Message(Command.SUCCESS, empty));
+        assertThat(session.getReport().getGroups()).isEmpty();
+        assertThat(session.getStatusText()).contains("0 group");
+    }
+
+    @Test
+    void nullDimensionRejected() {
+        assertThat(session.requestReport(null, "1")).isNull();
+        assertThat(session.getLastError()).contains("dimension");
+    }
+
+    @Test
+    void formatGroupNullReturnsEmpty() {
+        assertThat(PrincipalReportsSession.formatGroup(null)).isEmpty();
+    }
+
+    @Test
+    void parseEntityIdsNullReturnsEmpty() {
+        assertThat(PrincipalReportsSession.parseEntityIds(null)).isEmpty();
+    }
 }

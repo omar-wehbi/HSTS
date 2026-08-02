@@ -1,6 +1,7 @@
 package client.ui.exam;
 
 import common.entities.Exam;
+import common.entities.ExamRelease;
 import common.entities.ExamStatus;
 import common.network.ExamExecutionSummary;
 import common.network.ExamReleaseRequest;
@@ -91,6 +92,69 @@ class ExamReleaseSessionTest {
         session.onServerMessage(new Message(Command.SUCCESS, summary));
 
         assertThat(session.getExecutionSummary()).isSameAs(summary);
+    }
+
+    @Test
+    void errorMessageSetsLastError() {
+        session.requestApprovedExams();
+        session.onServerMessage(new Message(Command.ERROR, "Teachers only."));
+        assertThat(session.isAwaitingApproved()).isFalse();
+        assertThat(session.getLastError()).isEqualTo("Teachers only.");
+        assertThat(session.getStatusText()).isEqualTo("Server error.");
+    }
+
+    @Test
+    void releaseSuccessAddsRelease() {
+        LocalDateTime open = LocalDateTime.of(2026, 7, 28, 9, 0);
+        session.requestRelease(1, "0042", open, 120);
+
+        ExamRelease release = new ExamRelease(1, 2, "0042", open, open.plusMinutes(120));
+        release.setId(8);
+        session.onServerMessage(new Message(Command.SUCCESS, release));
+
+        assertThat(session.getReleases()).hasSize(1);
+        assertThat(session.getSelectedRelease()).isSameAs(release);
+        assertThat(session.getStatusText()).contains("0042");
+    }
+
+    @Test
+    void extendSuccessUpdatesStatus() {
+        session.requestExtend(5, 30);
+        session.onServerMessage(new Message(Command.SUCCESS, 2));
+        assertThat(session.getStatusText()).contains("2").contains("session");
+    }
+
+    @Test
+    void emptyListsClearApprovedAndReleases() {
+        session.requestApprovedExams();
+        session.onServerMessage(new Message(Command.SUCCESS, List.of()));
+        assertThat(session.getApprovedExams()).isEmpty();
+        assertThat(session.getStatusText()).contains("0 approved");
+
+        session.requestReleasedExams();
+        session.onServerMessage(new Message(Command.SUCCESS, List.of()));
+        assertThat(session.getReleases()).isEmpty();
+        assertThat(session.getStatusText()).contains("0 release");
+    }
+
+    @Test
+    void isExamAlreadyReleasedChecksLoadedReleases() {
+        assertThat(session.isExamAlreadyReleased(1)).isFalse();
+
+        ExamRelease release = new ExamRelease(1, 2, "1234",
+                LocalDateTime.now(), LocalDateTime.now().plusHours(1));
+        release.setId(3);
+        session.requestReleasedExams();
+        session.onServerMessage(new Message(Command.SUCCESS, List.of(release)));
+
+        assertThat(session.isExamAlreadyReleased(1)).isTrue();
+        assertThat(session.isExamAlreadyReleased(99)).isFalse();
+    }
+
+    @Test
+    void releaseRejectsNonPositiveExamId() {
+        assertThat(session.requestRelease(0, "0042", LocalDateTime.now(), 60)).isNull();
+        assertThat(session.getLastError()).contains("Select an approved exam");
     }
 
     private static Exam exam(int id, ExamStatus status) {

@@ -31,4 +31,28 @@ class StudyBotServiceTest {
     @Test void questionBankIsAddedToContext() throws Exception {when(users.isEnrolled(10,1)).thenReturn(true);when(dao.getBot(1)).thenReturn(new StudyBotView(1,"Bot",true,true,2,LocalDateTime.now(),0));when(dao.getQuestionBankContext(1)).thenReturn(List.of("Question: AVL?"));when(api.ask(anyString(),argThat(x->x.contains("Question: AVL?")))).thenReturn("Balanced tree");when(dao.saveHistory(anyInt(),anyInt(),anyString(),anyString())).thenReturn(new StudyBotAnswer(1,1,"q","a",LocalDateTime.now()));assertEquals(Message.Command.SUCCESS,service.ask(student,new StudyBotQuestionRequest(1,"AVL?")).getCommand());}
     @Test void apiFailureIsSavedWithoutLeakingTechnicalMessage() throws Exception {when(users.isEnrolled(10,1)).thenReturn(true);when(dao.getBot(1)).thenReturn(new StudyBotView(1,"Bot",true,false,2,LocalDateTime.now(),1));when(dao.getSources(1)).thenReturn(List.of(new StudyBotSourceView(1,1,"N","C",2,LocalDateTime.now())));when(api.ask(anyString(),anyList())).thenThrow(new IllegalStateException("HTTP 401 secret"));Message r=service.ask(student,new StudyBotQuestionRequest(1,"q"));assertEquals(Message.Command.ERROR,r.getCommand());assertFalse(String.valueOf(r.getPayload()).contains("401"));verify(dao).saveHistory(eq(1),eq(10),eq("q"),anyString(),eq("NO_ANSWER"));}
     @Test void onlyAssignedTeacherCanReadAggregateUsage(){when(dao.teacherCanEdit(2,1)).thenReturn(false);Message result=service.aggregateHistory(teacher,1);assertEquals(Message.Command.ERROR,result.getCommand());verify(dao,never()).usage(anyInt());}
+
+    @Test void getBotAndAvailabilityAndSources(){
+        when(dao.teacherCanEdit(2,1)).thenReturn(true);
+        when(dao.getBot(1)).thenReturn(new StudyBotView(1,"Bot",false,false,2,LocalDateTime.now(),0));
+        when(dao.setAvailability(1,true)).thenReturn(new StudyBotView(1,"Bot",true,false,2,LocalDateTime.now(),0));
+        when(dao.addSource(eq(1),eq("T"),eq("C"),eq(StudyBotSourceType.TEXT),isNull(),eq(2)))
+                .thenReturn(new StudyBotSourceView(9,1,"T","C",2,LocalDateTime.now()));
+        when(dao.getSources(1)).thenReturn(List.of(new StudyBotSourceView(9,1,"T","C",2,LocalDateTime.now())));
+        when(dao.getSource(9)).thenReturn(new StudyBotSourceView(9,1,"T","C",2,LocalDateTime.now()));
+        when(dao.updateSource(9,"T2","C2",2)).thenReturn(new StudyBotSourceView(9,1,"T2","C2",2,LocalDateTime.now()));
+        when(dao.deleteSource(9)).thenReturn(true);
+        when(dao.personalHistory(10)).thenReturn(List.of());
+        when(dao.usage(1)).thenReturn(new StudyBotUsageReport(1,0,0,List.of(),List.of()));
+
+        assertEquals(Message.Command.SUCCESS, service.getBot(teacher, 1).getCommand());
+        assertEquals(Message.Command.SUCCESS, service.setAvailability(teacher, new SetStudyBotAvailabilityRequest(1, true)).getCommand());
+        assertEquals(Message.Command.SUCCESS, service.addSource(teacher, new StudyBotSourceRequest(1, "T", "C")).getCommand());
+        assertEquals(Message.Command.SUCCESS, service.getSources(teacher, 1).getCommand());
+        assertEquals(Message.Command.SUCCESS, service.updateSource(teacher, new UpdateStudyBotSourceRequest(9, "T2", "C2")).getCommand());
+        assertEquals(Message.Command.SUCCESS, service.deleteSource(teacher, 9).getCommand());
+        assertEquals(Message.Command.SUCCESS, service.personalHistory(student).getCommand());
+        when(dao.teacherCanEdit(2,1)).thenReturn(true);
+        assertEquals(Message.Command.SUCCESS, service.aggregateHistory(teacher, 1).getCommand());
+    }
 }

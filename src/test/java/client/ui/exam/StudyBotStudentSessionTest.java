@@ -52,4 +52,53 @@ class StudyBotStudentSessionTest {
         session.onServerMessage(new Message(Command.SUCCESS, List.of(a)));
         assertThat(session.getHistory()).hasSize(1);
     }
+
+    @Test
+    void errorLockoutSetsLastError() {
+        session.requestAsk(1, "What is a tree?");
+        session.onServerMessage(new Message(Command.ERROR,
+                "Study bot is locked while an exam is in progress."));
+        assertThat(session.getLastError()).contains("locked");
+        assertThat(session.getStatusText()).isEqualTo("Server error.");
+        assertThat(session.getLastAnswer()).isNull();
+    }
+
+    @Test
+    void errorUnavailableSetsLastError() {
+        session.requestStudyBot(1);
+        session.onServerMessage(new Message(Command.ERROR, "Study bot is not available."));
+        assertThat(session.getLastError()).contains("not available");
+        assertThat(session.getBotView()).isNull();
+    }
+
+    @Test
+    void askSuccessStoresAnswer() {
+        session.requestAsk(1, "What is DFS?");
+        StudyBotAnswer answer = new StudyBotAnswer(2, 1, "What is DFS?", "Depth-first search",
+                LocalDateTime.now());
+        session.onServerMessage(new Message(Command.SUCCESS, answer));
+        assertThat(session.getLastAnswer()).isSameAs(answer);
+        assertThat(session.getStatusText()).contains("Answer received");
+    }
+
+    @Test
+    void emptyListsClearCoursesAndHistory() {
+        session.requestCourses();
+        session.onServerMessage(new Message(Command.SUCCESS, List.of()));
+        assertThat(session.getCourses()).isEmpty();
+        assertThat(session.getStatusText()).contains("0 course");
+
+        session.requestHistory();
+        session.onServerMessage(new Message(Command.SUCCESS, List.of()));
+        assertThat(session.getHistory()).isEmpty();
+        assertThat(session.getStatusText()).contains("0 history");
+    }
+
+    @Test
+    void askAndStudyBotRejectNonPositiveCourseId() {
+        assertThat(session.requestAsk(0, "Q?")).isNull();
+        assertThat(session.getLastError()).contains("course ID");
+        assertThat(session.requestStudyBot(-1)).isNull();
+        assertThat(session.getLastError()).contains("course ID");
+    }
 }
