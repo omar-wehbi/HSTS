@@ -61,9 +61,15 @@ public final class QuestionBankTestFixture {
     /**
      * Deletes every question (all versions, all families) and resets the id
      * counter, so generated ids are stable across test runs.
+     *
+     * <p>Child rows that reference {@code Questions} must go first — a seeded
+     * {@code ExamQuestions}/{@code StudentAnswers} row would otherwise block
+     * {@code DELETE FROM Questions} with a foreign-key error.
      */
     public static void wipeQuestions() {
-        execute("DELETE FROM Questions",
+        execute("DELETE FROM StudentAnswers",
+                "DELETE FROM ExamQuestions",
+                "DELETE FROM Questions",
                 "ALTER TABLE Questions AUTO_INCREMENT = 1");
     }
 

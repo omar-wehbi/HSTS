@@ -6,6 +6,8 @@ import common.network.Message;
 import common.network.Message.Command;
 import common.network.QuestionFilter;
 import ocsf.client.AbstractClient;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -23,7 +25,19 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class ExamEditIntegrationTest {
 
-    private static final int PORT = 5555;
+    private static final int PORT = 5606;
+    private static HSTSServer server;
+
+    @BeforeAll
+    static void startServer() throws Exception {
+        server = new HSTSServer(PORT);
+        server.listen();
+    }
+
+    @AfterAll
+    static void stopServer() throws Exception {
+        server.close();
+    }
 
     private static class TestClient extends AbstractClient {
         final BlockingQueue<Message> responses = new LinkedBlockingQueue<>();
