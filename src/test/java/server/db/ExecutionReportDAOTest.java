@@ -14,6 +14,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class ExecutionReportDAOTest extends ExecutionDaoTestBase {
 
@@ -54,5 +55,15 @@ class ExecutionReportDAOTest extends ExecutionDaoTestBase {
         dao.refreshStatistics(release.getId());
         assertThat(grades.getVisibleByRelease(release.getId())).hasSize(1);
         assertThat(grade.getStatus()).isEqualTo(GradeStatus.AUTO_GRADED); // local object unchanged
+    }
+
+    @Test
+    void refreshStatisticsFailsCleanlyWhenReleaseMissing() {
+        // Must throw a normal IllegalStateException from the DAO contract —
+        // never a secondary "LogicalConnection... is closed" from a failed rollback.
+        assertThatThrownBy(() -> dao.refreshStatistics(999_999))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("Could not refresh exam execution statistics")
+                .satisfies(ex -> assertThat(ex.getMessage()).doesNotContain("is closed"));
     }
 }

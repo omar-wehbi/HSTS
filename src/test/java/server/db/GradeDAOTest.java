@@ -69,4 +69,12 @@ class GradeDAOTest extends ExecutionDaoTestBase {
         assertThat(overridden.getOverrideJustification()).isEqualTo("partial credit");
         assertThat(dao.getVisibleByStudent(session.getStudentId())).hasSize(1);
     }
+
+    @Test
+    void createReturnsNullWhenForeignKeyDoesNotExist() {
+        Exam exam = ExecutionTestFixture.ensureApprovedExam();
+        int studentId = ExecutionTestFixture.userId("maya");
+        assertThat(dao.create(new Grade(999_999, exam.getId(), studentId, 50, LocalDateTime.now())))
+                .isNull();
+    }
 }

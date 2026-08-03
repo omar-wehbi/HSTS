@@ -31,6 +31,7 @@ public final class ExecutionTestFixture {
 
     /** Clears execution/bot rows that Person 4 DAOs own. Leaves Users/Courses intact. */
     public static void wipeExecutionData() {
+        TestDatabase.requireTestDatabase();
         execute(
                 "DELETE FROM StudyBotHistory",
                 "DELETE FROM StudyBotSources",

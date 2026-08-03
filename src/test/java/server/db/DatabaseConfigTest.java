@@ -36,7 +36,7 @@ class DatabaseConfigTest {
         DbSettings s = DatabaseConfig.getSettings();
         assertThat(s.host()).isEqualTo("localhost");
         assertThat(s.port()).isEqualTo(3306);
-        assertThat(s.database()).isEqualTo("hsts_a3_db");
+        assertThat(s.database()).isEqualTo(System.getProperty("hsts.db.name", "hsts_a3_db"));
     }
 
     @Test

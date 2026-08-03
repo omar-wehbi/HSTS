@@ -21,4 +21,10 @@ class ExamSnapshotDAOTest extends ExecutionDaoTestBase {
         assertThat(rows.get(0).getPoints()).isEqualTo(100);
         assertThat(rows.get(0).getText()).contains("Coverage fixture");
     }
+
+    @Test
+    void createForReleaseReturnsFalseWhenForeignKeyDoesNotExist() {
+        Exam exam = ExecutionTestFixture.ensureApprovedExam();
+        assertThat(dao.createForRelease(999_999, exam, new QuestionDAO())).isFalse();
+    }
 }

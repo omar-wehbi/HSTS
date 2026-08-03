@@ -20,7 +20,7 @@ public class ExamSessionDAO {
             tx.commit();
             return examSession;
         } catch (Exception e) {
-            if (tx != null) tx.rollback();
+            Transactions.rollbackQuietly(tx);
             System.err.println("[ExamSessionDAO] create failed: " + e.getMessage());
             return null;
         }
@@ -86,7 +86,7 @@ public class ExamSessionDAO {
             session.createMutationQuery("DELETE FROM StudentAnswer WHERE sessionId=:id").setParameter("id",sessionId).executeUpdate();
             if(answers!=null)for(StudentAnswer answer:answers){StudentAnswer saved=new StudentAnswer(answer.getQuestionId(),answer.getSelectedAnswer());saved.setSessionId(sessionId);session.persist(saved);}
             tx.commit(); attempt.setAnswers(answers); return attempt;
-        }catch(Exception e){if(tx!=null)tx.rollback();System.err.println("[ExamSessionDAO] saveAnswers failed: "+e.getMessage());return null;}
+        }catch(Exception e){Transactions.rollbackQuietly(tx);System.err.println("[ExamSessionDAO] saveAnswers failed: "+e.getMessage());return null;}
     }
 
     /** Replaces the answer snapshot and closes the attempt atomically. */
@@ -117,7 +117,7 @@ public class ExamSessionDAO {
             attempt.setAnswers(answers);
             return attempt;
         } catch (Exception e) {
-            if (tx != null) tx.rollback();
+            Transactions.rollbackQuietly(tx);
             System.err.println("[ExamSessionDAO] submit failed: " + e.getMessage());
             return null;
         }
@@ -142,7 +142,7 @@ public class ExamSessionDAO {
             if (attempt != null) attempt.setAnswers(getAnswers(sessionId));
             return attempt;
         } catch (Exception e) {
-            if (tx != null && tx.isActive()) tx.rollback();
+            Transactions.rollbackQuietly(tx);
             throw new IllegalStateException("Could not expire exam session " + sessionId, e);
         }
     }
@@ -161,7 +161,7 @@ public class ExamSessionDAO {
             tx.commit();
             return changed;
         } catch (Exception e) {
-            if (tx != null && tx.isActive()) tx.rollback();
+            Transactions.rollbackQuietly(tx);
             throw new IllegalStateException("Could not expire overdue exam sessions", e);
         }
     }
@@ -185,7 +185,7 @@ public class ExamSessionDAO {
             tx.commit();
             return active.size();
         } catch (Exception e) {
-            if (tx != null) tx.rollback();
+            Transactions.rollbackQuietly(tx);
             System.err.println("[ExamSessionDAO] extendActiveSessions failed: " + e.getMessage());
             return -1;
         }

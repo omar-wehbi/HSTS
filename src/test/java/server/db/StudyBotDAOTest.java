@@ -8,6 +8,7 @@ import common.network.StudyBotView;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class StudyBotDAOTest extends ExecutionDaoTestBase {
 
@@ -64,5 +65,14 @@ class StudyBotDAOTest extends ExecutionDaoTestBase {
         ExecutionTestFixture.wipeExecutionData();
         new QuestionDAO().add(QuestionBankTestFixture.sample(ExecutionTestFixture.COURSE_ALGORITHMS, "Bank ctx"));
         assertThat(dao.getQuestionBankContext(ExecutionTestFixture.COURSE_ALGORITHMS)).isNotEmpty();
+    }
+
+    @Test
+    void addSourceFailsCleanlyWhenCourseForeignKeyMissing() {
+        int teacherId = ExecutionTestFixture.userId("teacher");
+        assertThatThrownBy(() -> dao.addSource(999_999, "Notes", "content", teacherId))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("Could not add study-bot source")
+                .satisfies(ex -> assertThat(ex.getMessage()).doesNotContain("is closed"));
     }
 }
