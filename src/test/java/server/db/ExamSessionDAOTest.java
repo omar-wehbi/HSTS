@@ -94,13 +94,14 @@ class ExamSessionDAOTest extends ExecutionDaoTestBase {
         ExamRelease release = ExecutionTestFixture.createOpenRelease(exam, "1006");
         int maya = ExecutionTestFixture.userId("maya");
         ExamSession session = ExecutionTestFixture.startSession(release, maya, 10);
-        LocalDateTime before = session.getDeadline();
+        // Reload so `before` matches MySQL DATETIME precision (round/truncate), not in-memory nanos
+        LocalDateTime before = dao.getById(session.getId()).getDeadline();
 
         int n = dao.extendActiveSessions(release.getId(), 15, LocalDateTime.now());
         assertThat(n).isEqualTo(1);
         ExamSession updated = dao.getById(session.getId());
         assertThat(updated.getDeadline()).isAfter(before.minusSeconds(1));
-        assertThat(updated.getDeadline()).isEqualTo(updated.getDeadline()); // loaded
+        assertThat(updated.getDeadline()).isEqualTo(before.plusMinutes(15));
         assertThat(updated.getExtensionMinutes()).isEqualTo(15);
         assertThat(java.time.Duration.between(before, updated.getDeadline()).toMinutes()).isEqualTo(15);
     }
@@ -116,5 +117,13 @@ class ExamSessionDAOTest extends ExecutionDaoTestBase {
         assertThat(dao.hasActiveSession(maya, now)).isTrue();
         assertThat(dao.hasActiveSessionForCourse(maya, ExecutionTestFixture.COURSE_ALGORITHMS, now)).isTrue();
         assertThat(dao.hasActiveSession(ExecutionTestFixture.userId("noa"), now)).isFalse();
+    }
+
+    @Test
+    void createReturnsNullWhenForeignKeyDoesNotExist() {
+        int maya = ExecutionTestFixture.userId("maya");
+        LocalDateTime started = LocalDateTime.now();
+        assertThat(dao.create(new ExamSession(999_999, 999_999, maya, started, started.plusMinutes(30))))
+                .isNull();
     }
 }

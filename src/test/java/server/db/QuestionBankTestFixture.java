@@ -67,6 +67,7 @@ public final class QuestionBankTestFixture {
      * {@code DELETE FROM Questions} with a foreign-key error.
      */
     public static void wipeQuestions() {
+        TestDatabase.requireTestDatabase();
         execute("DELETE FROM StudentAnswers",
                 "DELETE FROM ExamQuestions",
                 "DELETE FROM Questions",

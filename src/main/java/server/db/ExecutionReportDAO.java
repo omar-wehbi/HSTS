@@ -66,7 +66,7 @@ public class ExecutionReportDAO {
             query.executeUpdate();
             transaction.commit();
         } catch (Exception exception) {
-            if (transaction != null && transaction.isActive()) transaction.rollback();
+            Transactions.rollbackQuietly(transaction);
             throw new IllegalStateException("Could not refresh exam execution statistics.", exception);
         }
     }

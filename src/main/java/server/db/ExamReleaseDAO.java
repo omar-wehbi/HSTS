@@ -21,9 +21,7 @@ public class ExamReleaseDAO {
             transaction.commit();
             return release;
         } catch (Exception exception) {
-            if (transaction != null && transaction.isActive()) {
-                transaction.rollback();
-            }
+            Transactions.rollbackQuietly(transaction);
             System.err.println("[ExamReleaseDAO] create failed: " + exception.getMessage());
             return null;
         }
@@ -92,7 +90,7 @@ public class ExamReleaseDAO {
         Transaction tx=null; try(Session session=HibernateUtil.getSessionFactory().openSession()) {
             tx=session.beginTransaction(); ExamRelease r=session.get(ExamRelease.class,releaseId);
             if(r!=null)session.remove(r); tx.commit();
-        } catch(Exception e){if(tx!=null)tx.rollback(); System.err.println("[ExamReleaseDAO] delete failed: "+e.getMessage());}
+        } catch(Exception e){Transactions.rollbackQuietly(tx); System.err.println("[ExamReleaseDAO] delete failed: "+e.getMessage());}
     }
 
     public boolean executionCodeExists(String executionCode) {

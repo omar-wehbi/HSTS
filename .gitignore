@@ -6,6 +6,10 @@ target/
 *.log
 .DS_Store
 
+# Build artifacts — deliverables are target/G12_*.jar only
+hsts-*.jar
+G12_*.jar
+
 # Course assignment specs — kept locally, not committed
 *.pdf
 

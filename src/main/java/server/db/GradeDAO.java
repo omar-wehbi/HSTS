@@ -18,7 +18,7 @@ public class GradeDAO {
             tx.commit();
             return grade;
         } catch (Exception e) {
-            if (tx != null) tx.rollback();
+            Transactions.rollbackQuietly(tx);
             System.err.println("[GradeDAO] create failed: " + e.getMessage());
             return null;
         }
@@ -65,7 +65,7 @@ public class GradeDAO {
             tx.commit();
             return grade;
         } catch (Exception e) {
-            if (tx != null) tx.rollback();
+            Transactions.rollbackQuietly(tx);
             System.err.println("[GradeDAO] approve failed: " + e.getMessage());
             return null;
         }
@@ -90,7 +90,7 @@ public class GradeDAO {
             tx.commit();
             return grade;
         } catch (Exception e) {
-            if (tx != null) tx.rollback();
+            Transactions.rollbackQuietly(tx);
             System.err.println("[GradeDAO] override failed: " + e.getMessage());
             return null;
         }

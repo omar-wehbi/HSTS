@@ -57,4 +57,12 @@ class ExamReleaseDAOTest extends ExecutionDaoTestBase {
         dao.delete(release.getId());
         assertThat(dao.getById(release.getId())).isNull();
     }
+
+    @Test
+    void createReturnsNullWhenForeignKeyDoesNotExist() {
+        LocalDateTime now = LocalDateTime.now();
+        int teacherId = ExecutionTestFixture.userId("teacher");
+        assertThat(dao.create(new ExamRelease(999_999, teacherId, "2099",
+                now.minusHours(1), now.plusHours(1)))).isNull();
+    }
 }

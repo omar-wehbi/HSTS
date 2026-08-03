@@ -19,10 +19,10 @@
 
         <javafx.version>17.0.2</javafx.version>
         <mysql.version>8.0.33</mysql.version>
-        <!-- Byte Buddy used by Mockito and Hibernate. Pin a Java 25-capable
+        <!-- Byte Buddy used by Mockito and Hibernate. Pin a JDK-26-capable
              release so Hibernate's older transitive (1.14.x) does not win
-             mediation and break MockMaker on JDK 25. -->
-        <bytebuddy.version>1.17.7</bytebuddy.version>
+             mediation and break MockMaker. Pair with surefire -javaagent. -->
+        <bytebuddy.version>1.18.11</bytebuddy.version>
         <mockito.version>5.23.0</mockito.version>
     </properties>
 
@@ -112,6 +112,13 @@
             <version>2.3.232</version>
             <scope>test</scope>
         </dependency>
+        <!-- LauncherSessionListener for one-time test DB bootstrap -->
+        <dependency>
+            <groupId>org.junit.platform</groupId>
+            <artifactId>junit-platform-launcher</artifactId>
+            <version>1.10.2</version>
+            <scope>test</scope>
+        </dependency>
         <!-- JavaFX UI testing (for Person 5) -->
         <dependency>
             <groupId>org.testfx</groupId>
@@ -140,11 +147,33 @@
                 </configuration>
             </plugin>
 
-            <!-- Run JUnit 5 tests on `mvn test` -->
+            <!-- Resolve ${group:artifact:type} paths for the Byte Buddy agent -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-dependency-plugin</artifactId>
+                <version>3.6.1</version>
+                <executions>
+                    <execution>
+                        <id>resolve-agent-paths</id>
+                        <goals><goal>properties</goal></goals>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <!-- Run JUnit 5 tests on `mvn test`.
+                 @{argLine} is late replacement so JaCoCo's agent is preserved.
+                 -javaagent loads Byte Buddy up front (JDK 26 + non-ASCII paths).
+                 hsts.db.name points tests at a throw-away schema. -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
                 <version>3.2.5</version>
+                <configuration>
+                    <argLine>@{argLine} -javaagent:${net.bytebuddy:byte-buddy-agent:jar}</argLine>
+                    <systemPropertyVariables>
+                        <hsts.db.name>hsts_a3_test</hsts.db.name>
+                    </systemPropertyVariables>
+                </configuration>
             </plugin>
 
             <!-- Test coverage: report generated on `mvn test` at
