@@ -16,7 +16,7 @@ import java.util.Map;
 
 /** Adapter for an existing external bot API. */
 public class ExternalStudyBotApiAdapter implements StudyBotApi {
-    private static final int MAX_CONTEXT_CHARS = 50_000;
+    private static final int MAX_CONTEXT_CHARS = 15_000;
 
     private final String endpoint, apiKey, model;
     private final HttpClient client;
@@ -63,7 +63,7 @@ public class ExternalStudyBotApiAdapter implements StudyBotApi {
         payload.put("stream", false);
 
         HttpRequest.Builder builder = HttpRequest.newBuilder(URI.create(endpoint))
-                .timeout(Duration.ofSeconds(30))
+                .timeout(Duration.ofSeconds(45))
                 .header("Content-Type", "application/json")
                 .header("Accept", "application/json")
                 .POST(HttpRequest.BodyPublishers.ofString(json.writeValueAsString(payload), StandardCharsets.UTF_8));
@@ -71,7 +71,9 @@ public class ExternalStudyBotApiAdapter implements StudyBotApi {
 
         HttpResponse<String> response = client.send(builder.build(), HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
         if (response.statusCode() < 200 || response.statusCode() >= 300)
-            throw new IllegalStateException("External bot service failed.");
+            throw new IllegalStateException(
+                    "External bot service failed with HTTP " + response.statusCode()
+            );
 
         JsonNode root = json.readTree(response.body());
         String answer = text(root, "answer");
