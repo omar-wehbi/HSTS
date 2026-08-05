@@ -31,6 +31,7 @@
             <ComboBox fx:id="dimensionCombo" prefWidth="160.0"/>
             <TextField fx:id="entityIdsField" promptText="Optional entity IDs (comma-separated)" HBox.hgrow="ALWAYS"/>
             <Button onAction="#onGenerate" styleClass="primary-button" text="Generate report"/>
+            <Button onAction="#onCopyReport" styleClass="secondary-button" text="Copy report"/>
         </HBox>
         <TextArea fx:id="reportArea" editable="false" prefRowCount="20" wrapText="true" VBox.vgrow="ALWAYS"/>
         <Label fx:id="statusLabel" styleClass="field-label" text=""/>

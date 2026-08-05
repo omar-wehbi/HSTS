@@ -97,17 +97,40 @@ class ExamReleaseServiceTest {
     }
 
     @Test
-    void closeTimeMustMatchExamDuration() {
+    void independentCloseWindowIsAcceptedWhenLongerThanDuration() {
         ExamReleaseService service = service();
         User teacher = user(10, Role.TEACHER);
         when(examDAO.getById(15)).thenReturn(exam(15, 10, ExamStatus.APPROVED, true));
+        when(courseDAO.isTeacherAssigned(10, COURSE_ID)).thenReturn(true);
+        when(releaseDAO.executionCodeConflicts(eq("0042"), any(), any())).thenReturn(false);
+        when(snapshotDAO.createForRelease(eq(7), any(), eq(questionDAO))).thenReturn(true);
+        when(releaseDAO.create(any(ExamRelease.class)))
+                .thenAnswer(invocation -> {
+                    ExamRelease release = invocation.getArgument(0);
+                    release.setId(7);
+                    return release;
+                });
 
-        ExamReleaseRequest mismatch = validRequest();
-        mismatch.setCloseTime(mismatch.getOpenTime().plusMinutes(90));
+        // Window 09:00–12:00 with 120-minute allotted duration elsewhere on the exam.
+        LocalDateTime open = LocalDateTime.of(2026, 8, 1, 9, 0);
+        ExamReleaseRequest wideWindow = new ExamReleaseRequest(15, "0042", open, open.plusHours(3));
 
-        assertError(service.release(teacher, mismatch),
-                "Close time must equal open time plus the exam duration (120 minutes).");
-        verify(releaseDAO, never()).create(any());
+        Message response = service.release(teacher, wideWindow);
+        assertThat(response.getCommand()).isEqualTo(Message.Command.SUCCESS);
+        ExamRelease saved = (ExamRelease) response.getPayload();
+        assertThat(saved.getCloseTime()).isEqualTo(open.plusHours(3));
+    }
+
+    @Test
+    void closeTimeMustBeAfterOpenTime() {
+        ExamReleaseService service = service();
+        User teacher = user(10, Role.TEACHER);
+
+        ExamReleaseRequest badTimes = validRequest();
+        badTimes.setCloseTime(badTimes.getOpenTime());
+        assertError(service.release(teacher, badTimes),
+                "Close time must be after open time.");
+        verifyNoInteractions(examDAO, releaseDAO, courseDAO);
     }
 
     @Test

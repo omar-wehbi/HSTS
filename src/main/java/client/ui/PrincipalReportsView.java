@@ -6,7 +6,6 @@ import common.entities.User;
 import common.network.Message;
 import common.network.PrincipalReport;
 import common.network.ReportDimension;
-import common.network.ReportGroup;
 import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
 import javafx.scene.Parent;
@@ -15,6 +14,8 @@ import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
 import javafx.scene.control.TextArea;
 import javafx.scene.control.TextField;
+import javafx.scene.input.Clipboard;
+import javafx.scene.input.ClipboardContent;
 import org.greenrobot.eventbus.Subscribe;
 
 import java.io.IOException;
@@ -62,6 +63,19 @@ public class PrincipalReportsView extends AbstractScreenUI {
         refreshStatus();
     }
 
+    @FXML
+    private void onCopyReport() {
+        String text = session.fullReportText();
+        if (text == null || text.isBlank()) {
+            alert("Generate a report first.");
+            return;
+        }
+        ClipboardContent content = new ClipboardContent();
+        content.putString(text);
+        Clipboard.getSystemClipboard().setContent(content);
+        statusLabel.setText("Report copied to clipboard.");
+    }
+
     @Subscribe
     public void onServerMessage(ServerMessageEvent event) {
         session.onServerMessage(event.getMessage());
@@ -70,12 +84,7 @@ public class PrincipalReportsView extends AbstractScreenUI {
         }
         PrincipalReport report = session.getReport();
         if (report != null) {
-            StringBuilder sb = new StringBuilder();
-            sb.append("Dimension: ").append(report.getDimension()).append("\n\n");
-            for (ReportGroup g : report.getGroups()) {
-                sb.append(PrincipalReportsSession.formatGroup(g)).append("\n\n");
-            }
-            reportArea.setText(sb.toString().trim());
+            reportArea.setText(session.fullReportText());
         }
         refreshStatus();
     }

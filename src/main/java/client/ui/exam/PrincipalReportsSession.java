@@ -86,6 +86,17 @@ public class PrincipalReportsSession {
         return sb.toString();
     }
 
+    /** Full report text suitable for clipboard / file copy (semester PDF §7.3). */
+    public String fullReportText() {
+        if (report == null) return "";
+        StringBuilder sb = new StringBuilder();
+        sb.append("Dimension: ").append(report.getDimension()).append("\n\n");
+        for (ReportGroup g : report.getGroups()) {
+            sb.append(formatGroup(g)).append("\n\n");
+        }
+        return sb.toString().trim();
+    }
+
     public void onServerMessage(Message msg) {
         if (msg == null) return;
         switch (msg.getCommand()) {

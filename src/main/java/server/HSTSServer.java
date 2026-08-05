@@ -181,6 +181,10 @@ public class HSTSServer extends AbstractServer {
                     safeSend(client, execution.start(caller, request.getPayload()));
                     break;
 
+                case PREVIEW_EXAM_BY_CODE:
+                    safeSend(client, execution.previewByCode(caller, request.getPayload()));
+                    break;
+
                 case SAVE_ANSWERS:
                     safeSend(client, execution.save(caller, request.getPayload()));
                     break;

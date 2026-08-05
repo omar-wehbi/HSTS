@@ -43,8 +43,14 @@
             <DatePicker fx:id="openDatePicker"/>
             <Label styleClass="field-label" text="Open time (HH:mm)"/>
             <TextField fx:id="openTimeField" promptText="09:00"/>
-            <Label styleClass="field-label" text="Close (auto from exam duration)"/>
-            <Label fx:id="closePreviewLabel" styleClass="field-label" text="—"/>
+            <Label styleClass="field-label" text="Close date"/>
+            <DatePicker fx:id="closeDatePicker"/>
+            <Label styleClass="field-label" text="Close time (HH:mm)"/>
+            <TextField fx:id="closeTimeField" promptText="12:00"/>
+            <Label fx:id="closePreviewLabel" styleClass="field-label"
+                   text="Tip: default close = open + exam duration"/>
+            <Button fx:id="suggestCloseButton" disable="true" onAction="#onSuggestClose"
+                    styleClass="secondary-button" text="Suggest close from duration"/>
             <Button fx:id="releaseButton" disable="true" onAction="#onRelease"
                     styleClass="primary-button" text="Release exam"/>
         </VBox>

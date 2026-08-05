@@ -35,6 +35,9 @@
         <VBox spacing="12.0" styleClass="card" HBox.hgrow="ALWAYS">
             <Label fx:id="detailTitle" styleClass="section-title" text="Select a result"/>
             <TextArea fx:id="detailArea" editable="false" prefRowCount="16" wrapText="true" VBox.vgrow="ALWAYS"/>
+            <HBox spacing="8.0">
+                <Button onAction="#onSaveCopy" styleClass="secondary-button" text="Save copy…"/>
+            </HBox>
             <Label fx:id="statusLabel" styleClass="field-label" text=""/>
         </VBox>
     </HBox>

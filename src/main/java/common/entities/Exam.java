@@ -77,6 +77,10 @@ public class Exam implements Serializable {
     @Transient
     private String courseName;
 
+    /** Subject code digit for 6-digit exam display ids (not a DB column on Exams). */
+    @Transient
+    private int subjectCode;
+
     @Column(name = "coordinator_id")
     private Integer coordinatorId;
 
@@ -234,6 +238,14 @@ public class Exam implements Serializable {
 
     public void setCourseName(String courseName) {
         this.courseName = courseName;
+    }
+
+    public int getSubjectCode() {
+        return subjectCode;
+    }
+
+    public void setSubjectCode(int subjectCode) {
+        this.subjectCode = subjectCode;
     }
 
     public List<ExamQuestion> getQuestions() {

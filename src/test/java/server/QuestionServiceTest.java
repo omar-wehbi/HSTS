@@ -18,6 +18,8 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -36,6 +38,7 @@ class QuestionServiceTest {
     @Mock private CourseDAO courseDAO;
 
     private QuestionService service() {
+        lenient().when(courseDAO.isTeacherAssigned(anyInt(), anyInt())).thenReturn(true);
         return new QuestionService(dao, courseDAO);
     }
 
@@ -145,6 +148,30 @@ class QuestionServiceTest {
         assertThat(saved.getImagePath()).isEqualTo("d.png");
         assertThat(saved.getImageData()).as("no byte echo (NFR 18)").isNull();
         verify(dao).add(q);
+    }
+
+    @Test
+    void teacherCannotAddQuestionForCourseTheyDoNotTeach() {
+        when(courseDAO.isTeacherAssigned(7, 1)).thenReturn(false);
+        QuestionService s = new QuestionService(dao, courseDAO);
+
+        assertThatExceptionOfType(AuthorizationException.class)
+                .isThrownBy(() -> s.add(user(Role.TEACHER), validQuestion()))
+                .withMessageContaining("courses you teach");
+        verify(dao, never()).add(any());
+    }
+
+    @Test
+    void teacherCannotUpdateQuestionForCourseTheyDoNotTeach() {
+        when(courseDAO.isTeacherAssigned(7, 1)).thenReturn(false);
+        QuestionService s = new QuestionService(dao, courseDAO);
+        Question q = validQuestion();
+        q.setBaseId(5);
+
+        assertThatExceptionOfType(AuthorizationException.class)
+                .isThrownBy(() -> s.update(user(Role.TEACHER), q))
+                .withMessageContaining("courses you teach");
+        verify(dao, never()).update(any());
     }
 
     @Test

@@ -28,7 +28,8 @@ mysql -u root -p < src/main/resources/seed_test_scenarios.sql
 
 creates the database, every table (including V3 exams and Person 4
 release/execution/grading/study-bot tables), and deterministic demo data
-(login accounts: teacher / coord / principal / maya / noa — password `1234`;
+(login accounts — password `1234` for all:
+teacher / neta / ronit / coord / principal / maya / noa / shira / tamar / avigail;
 sample DRAFT, PENDING_APPROVAL, and APPROVED exams for UI demos).
 Re-run any time to reset. Then run the tests: `mvnw test` (needs your password
 in `server.properties`).

@@ -25,6 +25,30 @@ public class ExamExecutionService {
  public ExamExecutionService(ExamReleaseDAO r, ExamDAO e, ExamSessionDAO s, QuestionDAO q, UserDAO u){this(r,e,s,q,u,new ExamSnapshotDAO(),new ExecutionReportDAO(),Clock.systemDefaultZone());}
  ExamExecutionService(ExamReleaseDAO r, ExamDAO e, ExamSessionDAO s, QuestionDAO q, UserDAO u, Clock c){this(r,e,s,q,u,new ExamSnapshotDAO(),new ExecutionReportDAO(),c);}
  ExamExecutionService(ExamReleaseDAO r, ExamDAO e, ExamSessionDAO s, QuestionDAO q, UserDAO u, ExamSnapshotDAO snap, ExecutionReportDAO rep, Clock c){releaseDAO=r;examDAO=e;sessionDAO=s;questionDAO=q;userDAO=u;snapshotDAO=snap;reportDAO=rep;clock=c;}
+ public Message previewByCode(User caller,Object payload){
+  Authorization.requireRole(caller,Role.STUDENT);
+  if(!(payload instanceof String)||((String)payload).isBlank())
+   return error("PREVIEW_EXAM_BY_CODE requires a non-empty execution code.");
+  String code=((String)payload).trim().toUpperCase();
+  if(!code.matches("[A-Za-z0-9]{4}"))return error("Execution code must contain exactly 4 letters or digits.");
+  LocalDateTime now=LocalDateTime.now(clock);
+  sessionDAO.expireOverdueSessions(now);
+  ExamRelease rel;
+  try{rel=releaseDAO.getOpenByExecutionCode(code,now);}
+  catch(IllegalStateException ex){return error("Could not validate the execution code.");}
+  if(rel==null)return error("Invalid execution code or the exam is not currently open.");
+  Exam exam=examDAO.getById(rel.getExamId());
+  if(exam==null)return error("The released exam no longer exists.");
+  if(!userDAO.isEnrolled(caller.getId(),exam.getCourseId()))
+   return error("You are not enrolled in this course.");
+  int qCount=snapshotDAO.getByRelease(rel.getId()).size();
+  if(qCount==0){
+   // Snapshot may be missing on legacy rows — fall back to live exam size.
+   qCount=exam.getQuestions()==null?0:exam.getQuestions().size();
+  }
+  return success(new ExamPreview(rel.getId(),exam.getId(),exam.getTitle(),
+          exam.getStudentInstructions(),exam.getDurationMinutes(),qCount,code));
+ }
  public Message start(User caller,Object payload){Authorization.requireRole(caller,Role.STUDENT);if(!(payload instanceof StartExamRequest))return error("START_EXAM_SESSION requires a StartExamRequest payload.");StartExamRequest req=(StartExamRequest)payload;if(req.getExecutionCode()==null||!req.getExecutionCode().matches("[A-Za-z0-9]{4}"))return error("Execution code must contain exactly 4 letters or digits.");if(req.getIdNumber()==null||req.getIdNumber().isBlank())return error("Student ID number is required.");if(!req.getIdNumber().equals(caller.getIdNumber()))return error("The ID number does not match the logged-in student.");LocalDateTime now=LocalDateTime.now(clock);sessionDAO.expireOverdueSessions(now);ExamRelease rel;
  try { rel=releaseDAO.getOpenByExecutionCode(req.getExecutionCode().toUpperCase(),now); }
  catch(IllegalStateException ex){return error("Could not validate the execution code.");}

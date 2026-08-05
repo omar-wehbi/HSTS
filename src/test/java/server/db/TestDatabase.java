@@ -42,6 +42,9 @@ public final class TestDatabase {
                 + "&allowPublicKeyRetrieval=true&useSSL=false";
         try (Connection c = DriverManager.getConnection(url, s.user(), s.password());
              Statement st = c.createStatement()) {
+            // Recreate from scratch so schema upgrades in the seed (e.g. Courses.subject_id)
+            // always apply — CREATE TABLE IF NOT EXISTS would keep a stale table.
+            st.execute("DROP DATABASE IF EXISTS `" + s.database() + "`");
             st.execute(script);
             while (st.getMoreResults() || st.getUpdateCount() != -1) { /* drain */ }
         } catch (SQLException e) {

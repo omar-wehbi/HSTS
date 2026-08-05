@@ -51,6 +51,7 @@ public class Message implements Serializable {
 
         // ----- Exam execution and live extension -----
         START_EXAM_SESSION,          // payload: StartExamRequest -> SUCCESS: ExamForm
+        PREVIEW_EXAM_BY_CODE,        // payload: String executionCode -> SUCCESS: ExamPreview (no session)
         SAVE_ANSWERS,                // payload: SaveAnswersRequest -> SUCCESS: ExamSession
         SUBMIT_ANSWERS,              // payload: SubmitAnswersRequest -> SUCCESS: ExamSession
         GET_EXAM_SESSION,            // payload: Integer sessionId -> SUCCESS: ExamSession
