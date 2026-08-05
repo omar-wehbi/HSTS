@@ -144,8 +144,12 @@ public class HSTSServer extends AbstractServer {
                     safeSend(client, exams.getMine(caller));
                     break;
 
+                case GET_MY_SUBJECTS:
+                    safeSend(client, exams.getMySubjects(caller));
+                    break;
+
                 case GET_PENDING_EXAMS:
-                    safeSend(client, exams.getPending(caller));
+                    safeSend(client, exams.getPending(caller, request.getPayload()));
                     break;
 
                 case GENERATE_EXAM_AUTO:

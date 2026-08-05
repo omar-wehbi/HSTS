@@ -173,6 +173,16 @@ class ExamBuilderSessionTest {
         assertThat(session.getLastError()).contains("already");
     }
 
+    @Test
+    void setPointsAtUpdatesSelectedQuestion() {
+        session.addQuestion(question(10), 25);
+        session.addQuestion(question(11), 25);
+        session.setPointsAt(0, 40);
+        assertThat(session.getSelectedQuestions().get(0).getPoints()).isEqualTo(40);
+        assertThat(session.getSelectedQuestions().get(1).getPoints()).isEqualTo(25);
+        assertThat(session.getPointsTotal()).isEqualTo(65);
+    }
+
     private static Question question(int id) {
         Question q = new Question(1, "Q" + id, "a", "b", "c", "d", 1,
                 null, "Sorting", "EASY");

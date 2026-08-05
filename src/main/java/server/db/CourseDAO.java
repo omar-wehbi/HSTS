@@ -42,6 +42,97 @@ public class CourseDAO {
         return list;
     }
 
+    /** Courses assigned to this teacher via {@code CourseTeachers}, ordered by name. */
+    public List<Course> listForTeacher(int teacherId) {
+        List<Course> list = new ArrayList<>();
+        try (Connection conn = DatabaseConfig.getConnection();
+             PreparedStatement ps = conn.prepareStatement(
+                     "SELECT c.id, c.name, c.subject_id, s.code AS subject_code "
+                             + "FROM Courses c "
+                             + "JOIN CourseTeachers ct ON ct.course_id = c.id "
+                             + "LEFT JOIN Subjects s ON s.id = c.subject_id "
+                             + "WHERE ct.teacher_id=? ORDER BY c.name")) {
+            ps.setInt(1, teacherId);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    Integer sid = rs.getObject("subject_id") == null
+                            ? null : rs.getInt("subject_id");
+                    Integer scode = rs.getObject("subject_code") == null
+                            ? null : rs.getInt("subject_code");
+                    list.add(new Course(rs.getInt("id"), rs.getString("name"), sid, scode));
+                }
+            }
+        } catch (SQLException e) {
+            System.err.println("[CourseDAO] listForTeacher failed: " + e.getMessage());
+        }
+        return list;
+    }
+
+    /** Courses belonging to a subject, ordered by name. */
+    public List<Course> listBySubject(int subjectId) {
+        List<Course> list = new ArrayList<>();
+        try (Connection conn = DatabaseConfig.getConnection();
+             PreparedStatement ps = conn.prepareStatement(
+                     "SELECT c.id, c.name, c.subject_id, s.code AS subject_code "
+                             + "FROM Courses c "
+                             + "LEFT JOIN Subjects s ON s.id = c.subject_id "
+                             + "WHERE c.subject_id=? ORDER BY c.name")) {
+            ps.setInt(1, subjectId);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    Integer sid = rs.getObject("subject_id") == null
+                            ? null : rs.getInt("subject_id");
+                    Integer scode = rs.getObject("subject_code") == null
+                            ? null : rs.getInt("subject_code");
+                    list.add(new Course(rs.getInt("id"), rs.getString("name"), sid, scode));
+                }
+            }
+        } catch (SQLException e) {
+            System.err.println("[CourseDAO] listBySubject failed: " + e.getMessage());
+        }
+        return list;
+    }
+
+    /**
+     * Course ids under this coordinator, optionally narrowed by subject and/or course.
+     * Empty list means no matching courses (not "all courses").
+     */
+    public List<Integer> courseIdsForCoordinator(int coordinatorId,
+                                                 Integer subjectId,
+                                                 Integer courseId) {
+        List<Integer> ids = new ArrayList<>();
+        StringBuilder sql = new StringBuilder(
+                "SELECT c.id FROM Courses c "
+                        + "JOIN Subjects s ON s.id = c.subject_id "
+                        + "WHERE s.coordinator_id=?");
+        if (subjectId != null) {
+            sql.append(" AND c.subject_id=?");
+        }
+        if (courseId != null) {
+            sql.append(" AND c.id=?");
+        }
+        sql.append(" ORDER BY c.id");
+        try (Connection conn = DatabaseConfig.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql.toString())) {
+            int i = 1;
+            ps.setInt(i++, coordinatorId);
+            if (subjectId != null) {
+                ps.setInt(i++, subjectId);
+            }
+            if (courseId != null) {
+                ps.setInt(i, courseId);
+            }
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    ids.add(rs.getInt(1));
+                }
+            }
+        } catch (SQLException e) {
+            System.err.println("[CourseDAO] courseIdsForCoordinator failed: " + e.getMessage());
+        }
+        return ids;
+    }
+
     /** Course-teacher assignment is authoritative data imported from the external user system. */
     public boolean isTeacherAssigned(int teacherId, int courseId) {
         try (Connection conn = DatabaseConfig.getConnection();

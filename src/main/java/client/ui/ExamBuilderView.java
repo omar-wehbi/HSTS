@@ -55,7 +55,7 @@ public class ExamBuilderView extends AbstractScreenUI {
     @FXML private TextField titleField, durationField, pointsField;
     @FXML private TextArea studentInstructions, teacherNotes;
     @FXML private Label pointsBadge, statusLabel, autoPointsLabel, autoStatusLabel;
-    @FXML private Button saveButton, addButton;
+    @FXML private Button saveButton, addButton, updatePointsButton;
     @FXML private TextField autoCount, autoPts, autoTitleField, autoDurationField;
     @FXML private ListView<AutoExamRequirement> requirementsList;
 
@@ -80,6 +80,12 @@ public class ExamBuilderView extends AbstractScreenUI {
         selectedList.setCellFactory(lv -> new SelectedCell());
         requirementsList.setCellFactory(lv -> new RequirementCell());
         autoDifficulty.setItems(FXCollections.observableArrayList("EASY", "MEDIUM", "HARD"));
+        selectedList.getSelectionModel().selectedItemProperty()
+                .addListener((o, was, now) -> {
+                    if (now != null) {
+                        pointsField.setText(String.valueOf(now.getPoints()));
+                    }
+                });
         topicBox.getSelectionModel().selectedItemProperty()
                 .addListener((o, was, now) -> refreshBankList());
         courseBox.getSelectionModel().selectedItemProperty()
@@ -149,6 +155,24 @@ public class ExamBuilderView extends AbstractScreenUI {
             alert(session.getLastError());
         }
         selectedList.getItems().setAll(session.getSelectedQuestions());
+        refreshPointsBadge();
+    }
+
+    @FXML
+    private void onUpdatePoints() {
+        int idx = selectedList.getSelectionModel().getSelectedIndex();
+        if (idx < 0) {
+            alert("Select a question in the exam list to update its points.");
+            return;
+        }
+        int pts = parsePositiveInt(pointsField.getText(), 0);
+        if (pts <= 0) {
+            alert("Points must be a positive number.");
+            return;
+        }
+        session.setPointsAt(idx, pts);
+        selectedList.getItems().setAll(session.getSelectedQuestions());
+        selectedList.getSelectionModel().select(idx);
         refreshPointsBadge();
     }
 
@@ -455,9 +479,13 @@ public class ExamBuilderView extends AbstractScreenUI {
         private final VBox box = new VBox(2, title, sub);
 
         QuestionCell() {
+            title.setWrapText(true);
             title.getStyleClass().add("q-title");
             sub.getStyleClass().add("q-sub");
-            title.setWrapText(true);
+            box.setFillWidth(true);
+            box.maxWidthProperty().bind(bankList.widthProperty().subtract(36));
+            title.maxWidthProperty().bind(box.maxWidthProperty());
+            setText(null);
         }
 
         @Override
@@ -467,7 +495,8 @@ public class ExamBuilderView extends AbstractScreenUI {
                 setGraphic(null);
                 return;
             }
-            title.setText(q.getQuestionText());
+            String id = common.util.DisplayId.format(q.getBaseId(), q.getCourseId());
+            title.setText(id + "   " + q.getQuestionText());
             String topic = q.getTopic() == null ? "?" : q.getTopic();
             String diff = q.getDifficulty() == null ? "?" : q.getDifficulty();
             sub.setText(topic + " · " + diff);
@@ -476,11 +505,25 @@ public class ExamBuilderView extends AbstractScreenUI {
     }
 
     private final class SelectedCell extends ListCell<ExamQuestion> {
+        private final Label title = new Label();
+        private final Label sub = new Label();
+        private final VBox box = new VBox(2, title, sub);
+
+        SelectedCell() {
+            title.setWrapText(true);
+            title.getStyleClass().add("q-title");
+            sub.getStyleClass().add("q-sub");
+            box.setFillWidth(true);
+            box.maxWidthProperty().bind(selectedList.widthProperty().subtract(36));
+            title.maxWidthProperty().bind(box.maxWidthProperty());
+            setText(null);
+        }
+
         @Override
         protected void updateItem(ExamQuestion eq, boolean empty) {
             super.updateItem(eq, empty);
             if (empty || eq == null) {
-                setText(null);
+                setGraphic(null);
                 return;
             }
             String text = "#" + eq.getQuestionId();
@@ -490,7 +533,9 @@ public class ExamBuilderView extends AbstractScreenUI {
                     break;
                 }
             }
-            setText(eq.getPosition() + ". " + text + "  (" + eq.getPoints() + " pts)");
+            title.setText(eq.getPosition() + ". " + text);
+            sub.setText(eq.getPoints() + " pts");
+            setGraphic(box);
         }
     }
 

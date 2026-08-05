@@ -248,4 +248,26 @@ class QuestionServiceTest {
         when(dao.getHistory(9)).thenReturn(List.of(validQuestion()));
         assertThat((List<?>) s.getHistory(student, 9).getPayload()).hasSize(1);
     }
+
+    @Test
+    void teacherGetCoursesReturnsOnlyTaughtCourses() {
+        common.entities.Course taught = new common.entities.Course(1, "Algorithms");
+        when(courseDAO.listForTeacher(7)).thenReturn(List.of(taught));
+
+        Message r = service().getCourses(user(Role.TEACHER));
+        assertThat(r.getCommand()).isEqualTo(Command.SUCCESS);
+        @SuppressWarnings("unchecked")
+        List<common.entities.Course> courses = (List<common.entities.Course>) r.getPayload();
+        assertThat(courses).containsExactly(taught);
+        verify(courseDAO).listForTeacher(7);
+        verify(courseDAO, never()).getAll();
+    }
+
+    @Test
+    void principalGetCoursesReturnsAllCourses() {
+        when(courseDAO.getAll()).thenReturn(List.of());
+        service().getCourses(user(Role.PRINCIPAL));
+        verify(courseDAO).getAll();
+        verify(courseDAO, never()).listForTeacher(anyInt());
+    }
 }

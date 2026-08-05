@@ -1,10 +1,13 @@
 package client.ui.exam;
 
+import common.entities.Course;
 import common.entities.Exam;
 import common.entities.ExamStatus;
+import common.entities.Subject;
 import common.network.ExamRejectionRequest;
 import common.network.Message;
 import common.network.Message.Command;
+import common.network.PendingExamFilter;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -14,15 +17,45 @@ import java.util.List;
  */
 public class ExamApprovalSession {
 
+    public static final String ALL_LABEL = "All";
+
     private final List<Exam> pending = new ArrayList<>();
+    private final List<Subject> mySubjects = new ArrayList<>();
+    private final List<Course> allCourses = new ArrayList<>();
     private Exam selected;
+    private Integer filterSubjectId; // null = All
+    private Integer filterCourseId;  // null = All
     private String statusText = "";
     private String lastError;
     private boolean awaitingList;
     private boolean awaitingAction;
+    private boolean awaitingSubjects;
+    private boolean awaitingCourses;
 
     public List<Exam> getPending() {
         return List.copyOf(pending);
+    }
+
+    public List<Subject> getMySubjects() {
+        return List.copyOf(mySubjects);
+    }
+
+    public List<Course> getAllCourses() {
+        return List.copyOf(allCourses);
+    }
+
+    /** Courses under the selected subject, or empty when subject is All. */
+    public List<Course> coursesForSelectedSubject() {
+        if (filterSubjectId == null) {
+            return List.of();
+        }
+        List<Course> out = new ArrayList<>();
+        for (Course c : allCourses) {
+            if (filterSubjectId.equals(c.getSubjectId())) {
+                out.add(c);
+            }
+        }
+        return out;
     }
 
     public Exam getSelected() {
@@ -33,6 +66,23 @@ public class ExamApprovalSession {
         this.selected = selected;
     }
 
+    public Integer getFilterSubjectId() {
+        return filterSubjectId;
+    }
+
+    public Integer getFilterCourseId() {
+        return filterCourseId;
+    }
+
+    public void setFilterSubjectId(Integer subjectId) {
+        this.filterSubjectId = subjectId;
+        this.filterCourseId = null;
+    }
+
+    public void setFilterCourseId(Integer courseId) {
+        this.filterCourseId = courseId;
+    }
+
     public String getStatusText() {
         return statusText;
     }
@@ -41,11 +91,24 @@ public class ExamApprovalSession {
         return lastError;
     }
 
+    public Message requestMySubjects() {
+        awaitingSubjects = true;
+        lastError = null;
+        return new Message(Command.GET_MY_SUBJECTS);
+    }
+
+    public Message requestCourses() {
+        awaitingCourses = true;
+        lastError = null;
+        return new Message(Command.GET_COURSES);
+    }
+
     public Message requestPending() {
         awaitingList = true;
         statusText = "Loading pending exams…";
         lastError = null;
-        return new Message(Command.GET_PENDING_EXAMS);
+        PendingExamFilter filter = new PendingExamFilter(filterSubjectId, filterCourseId);
+        return new Message(Command.GET_PENDING_EXAMS, filter);
     }
 
     public Message requestApprove() {
@@ -94,17 +157,33 @@ public class ExamApprovalSession {
                             ? "Exam approved."
                             : "Exam rejected.";
                 } else if (payload instanceof List<?> list) {
-                    awaitingList = false;
-                    pending.clear();
-                    for (Object o : list) {
-                        if (o instanceof Exam e) pending.add(e);
+                    if (awaitingSubjects) {
+                        awaitingSubjects = false;
+                        mySubjects.clear();
+                        for (Object o : list) {
+                            if (o instanceof Subject s) mySubjects.add(s);
+                        }
+                    } else if (awaitingCourses) {
+                        awaitingCourses = false;
+                        allCourses.clear();
+                        for (Object o : list) {
+                            if (o instanceof Course c) allCourses.add(c);
+                        }
+                    } else {
+                        awaitingList = false;
+                        pending.clear();
+                        for (Object o : list) {
+                            if (o instanceof Exam e) pending.add(e);
+                        }
+                        statusText = pending.size() + " pending.";
                     }
-                    statusText = pending.size() + " pending.";
                 }
             }
             case ERROR -> {
                 awaitingList = false;
                 awaitingAction = false;
+                awaitingSubjects = false;
+                awaitingCourses = false;
                 lastError = String.valueOf(msg.getPayload());
                 statusText = "Server error.";
             }
