@@ -40,7 +40,8 @@ public class Message implements Serializable {
         DELETE_EXAM,              // payload: Integer examId -> SUCCESS: Integer (deleted examId)
 
         // ----- Exam approval: client -> server -----
-        GET_PENDING_EXAMS,          // payload: null -> SUCCESS: List<Exam>
+        GET_MY_SUBJECTS,            // payload: null -> SUCCESS: List<Subject> (coordinator)
+        GET_PENDING_EXAMS,          // payload: null | PendingExamFilter -> SUCCESS: List<Exam>
         SUBMIT_EXAM_FOR_APPROVAL,   // payload: Integer examId -> SUCCESS: Exam
         APPROVE_EXAM,               // payload: Integer examId -> SUCCESS: Exam
         REJECT_EXAM,                // payload: ExamRejectionRequest -> SUCCESS: Exam

@@ -173,7 +173,7 @@ class ExamServiceTest {
                 .isThrownBy(() -> service.getMine(null));
 
         assertThatExceptionOfType(AuthorizationException.class)
-                .isThrownBy(() -> service.getPending(null));
+                .isThrownBy(() -> service.getPending(null, null));
 
         assertThatExceptionOfType(AuthorizationException.class)
                 .isThrownBy(() -> service.create(null, validExam()));
@@ -376,7 +376,9 @@ class ExamServiceTest {
 
     @Test
     void coordinatorMayReadPendingExams() {
-        when(examDAO.getPendingApproval())
+        when(courseDAO.courseIdsForCoordinator(20, null, null))
+                .thenReturn(List.of(1));
+        when(examDAO.getPendingApprovalForCourses(List.of(1)))
                 .thenReturn(List.of(
                         storedExam(
                                 1,
@@ -386,7 +388,7 @@ class ExamServiceTest {
                 ));
 
         Message response =
-                service().getPending(coordinator());
+                service().getPending(coordinator(), null);
 
         assertThat(response.getCommand())
                 .isEqualTo(Command.SUCCESS);
@@ -395,7 +397,33 @@ class ExamServiceTest {
                 .hasSize(1);
 
         verify(examDAO)
-                .getPendingApproval();
+                .getPendingApprovalForCourses(List.of(1));
+    }
+
+    @Test
+    void coordinatorPendingFilterRejectsForeignSubject() {
+        when(subjectDAO.isCoordinatorForSubject(20, 99)).thenReturn(false);
+
+        assertThatExceptionOfType(AuthorizationException.class)
+                .isThrownBy(() -> service().getPending(
+                        coordinator(),
+                        new common.network.PendingExamFilter(99, null)))
+                .withMessageContaining("subjects you coordinate");
+    }
+
+    @Test
+    void coordinatorPendingFilterByCourse() {
+        when(courseDAO.courseIdsForCoordinator(20, null, 2))
+                .thenReturn(List.of(2));
+        when(examDAO.getPendingApprovalForCourses(List.of(2)))
+                .thenReturn(List.of());
+
+        Message response = service().getPending(
+                coordinator(),
+                new common.network.PendingExamFilter(null, 2));
+
+        assertThat(response.getCommand()).isEqualTo(Command.SUCCESS);
+        verify(examDAO).getPendingApprovalForCourses(List.of(2));
     }
 
     // ===== create =========================================================

@@ -3,14 +3,18 @@ package client.ui;
 import client.events.ServerMessageEvent;
 import client.ui.exam.ExamApprovalSession;
 import client.ui.exam.ExamStatusLabel;
+import common.entities.Course;
 import common.entities.Exam;
+import common.entities.Subject;
 import common.entities.User;
 import common.network.Message;
+import javafx.collections.FXCollections;
 import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
 import javafx.scene.Parent;
 import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
+import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
 import javafx.scene.control.ListCell;
 import javafx.scene.control.ListView;
@@ -20,6 +24,8 @@ import org.greenrobot.eventbus.Subscribe;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Coordinator approval screen (scenario 4).
@@ -29,7 +35,10 @@ public class ExamApprovalView extends AbstractScreenUI {
     private static final String FXML_PATH = "/fxml/ExamApprovalView.fxml";
 
     private final ExamApprovalSession session = new ExamApprovalSession();
+    private boolean syncingFilters;
 
+    @FXML private ComboBox<String> subjectBox;
+    @FXML private ComboBox<String> courseBox;
     @FXML private ListView<Exam> listView;
     @FXML private Label countBadge, detailTitle, idBadge, statusLabel;
     @FXML private TextArea detailArea, reasonField;
@@ -51,10 +60,18 @@ public class ExamApprovalView extends AbstractScreenUI {
         listView.setCellFactory(lv -> new ExamCell());
         listView.getSelectionModel().selectedItemProperty()
                 .addListener((o, was, now) -> showDetail(now));
+        subjectBox.valueProperty().addListener((o, was, now) -> {
+            if (!syncingFilters) onSubjectChanged();
+        });
+        courseBox.valueProperty().addListener((o, was, now) -> {
+            if (!syncingFilters) onCourseChanged();
+        });
     }
 
     @Override
     protected void onShown() {
+        send(session.requestMySubjects());
+        send(session.requestCourses());
         send(session.requestPending());
         refreshStatus();
     }
@@ -103,10 +120,92 @@ public class ExamApprovalView extends AbstractScreenUI {
         if (event.getMessage().getCommand() == Message.Command.ERROR) {
             alert(session.getLastError());
         }
+        refreshFilterCombos();
         listView.getItems().setAll(session.getPending());
         countBadge.setText(session.getPending().size() + " pending");
         showDetail(listView.getSelectionModel().getSelectedItem());
         refreshStatus();
+    }
+
+    private void onSubjectChanged() {
+        String selected = subjectBox.getValue();
+        Integer subjectId = null;
+        if (selected != null && !ExamApprovalSession.ALL_LABEL.equals(selected)) {
+            for (Subject s : session.getMySubjects()) {
+                if (s.getName().equals(selected)) {
+                    subjectId = s.getId();
+                    break;
+                }
+            }
+        }
+        session.setFilterSubjectId(subjectId);
+        refreshCourseCombo();
+        send(session.requestPending());
+        refreshStatus();
+    }
+
+    private void onCourseChanged() {
+        String selected = courseBox.getValue();
+        Integer courseId = null;
+        if (selected != null && !ExamApprovalSession.ALL_LABEL.equals(selected)) {
+            for (Course c : session.coursesForSelectedSubject()) {
+                if (c.getName().equals(selected)) {
+                    courseId = c.getId();
+                    break;
+                }
+            }
+        }
+        session.setFilterCourseId(courseId);
+        send(session.requestPending());
+        refreshStatus();
+    }
+
+    private void refreshFilterCombos() {
+        syncingFilters = true;
+        try {
+            List<String> subjectItems = new ArrayList<>();
+            subjectItems.add(ExamApprovalSession.ALL_LABEL);
+            for (Subject s : session.getMySubjects()) {
+                subjectItems.add(s.getName());
+            }
+            String keepSubject = subjectBox.getValue();
+            subjectBox.setItems(FXCollections.observableArrayList(subjectItems));
+            if (keepSubject != null && subjectItems.contains(keepSubject)) {
+                subjectBox.setValue(keepSubject);
+            } else {
+                subjectBox.setValue(ExamApprovalSession.ALL_LABEL);
+            }
+            refreshCourseCombo();
+        } finally {
+            syncingFilters = false;
+        }
+    }
+
+    private void refreshCourseCombo() {
+        syncingFilters = true;
+        try {
+            List<String> courseItems = new ArrayList<>();
+            courseItems.add(ExamApprovalSession.ALL_LABEL);
+            Integer subjectId = session.getFilterSubjectId();
+            boolean enableCourse = subjectId != null;
+            if (enableCourse) {
+                for (Course c : session.coursesForSelectedSubject()) {
+                    courseItems.add(c.getName());
+                }
+            }
+            String keepCourse = courseBox.getValue();
+            courseBox.setItems(FXCollections.observableArrayList(courseItems));
+            courseBox.setDisable(!enableCourse);
+            if (enableCourse && keepCourse != null && courseItems.contains(keepCourse)
+                    && !ExamApprovalSession.ALL_LABEL.equals(keepCourse)
+                    && session.getFilterCourseId() != null) {
+                courseBox.setValue(keepCourse);
+            } else {
+                courseBox.setValue(ExamApprovalSession.ALL_LABEL);
+            }
+        } finally {
+            syncingFilters = false;
+        }
     }
 
     private void showDetail(Exam exam) {

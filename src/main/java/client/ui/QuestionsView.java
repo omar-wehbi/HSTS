@@ -4,6 +4,7 @@ import common.entities.Course;
 import common.entities.Question;
 import common.network.Message;
 import common.network.Message.Command;
+import common.network.QuestionFilter;
 import javafx.collections.FXCollections;
 import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
@@ -15,7 +16,9 @@ import javafx.scene.layout.VBox;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.TreeSet;
 
 /**
  * Question Bank manager (Presentation tier), defined in FXML.
@@ -30,12 +33,14 @@ import java.util.List;
 public class QuestionsView extends AbstractScreenUI {
 
     private static final String FXML_PATH = "/fxml/QuestionsView.fxml";
+    private static final String ALL_LABEL = "All";
 
     /** Illustration uploads larger than this are rejected client-side (NFR 18). */
     private static final int MAX_IMAGE_BYTES = 2 * 1024 * 1024;
 
     @FXML private ListView<Question> listView;
     @FXML private ComboBox<Course>   courseBox;
+    @FXML private ComboBox<String>   filterCourseBox, filterTopicBox;
     @FXML private TextArea           questionField;
     @FXML private TextField          a1, a2, a3, a4;
     @FXML private ComboBox<Integer>  correctBox;
@@ -54,6 +59,11 @@ public class QuestionsView extends AbstractScreenUI {
     private boolean awaitingSave = false;
     /** True when the pending operation was an Add (so we reset the form on success). */
     private boolean pendingWasAdd = false;
+    private boolean syncingFilters = false;
+    private boolean awaitingCourses = false;
+    private final List<Course> taughtCourses = new ArrayList<>();
+    /** Unfiltered (or course-scoped) pool used to build topic options. */
+    private final List<Question> topicPool = new ArrayList<>();
 
     // ----- illustration state (scenario 2: a question includes an illustration) -----
     /** Newly chosen image bytes; null = nothing chosen in this edit session. */
@@ -91,14 +101,21 @@ public class QuestionsView extends AbstractScreenUI {
 
         listView.setCellFactory(lv -> new QuestionCell());
         listView.getSelectionModel().selectedItemProperty().addListener((o, was, now) -> fillForm(now));
+        filterCourseBox.valueProperty().addListener((o, was, now) -> {
+            if (!syncingFilters) onBrowseCourseChanged();
+        });
+        filterTopicBox.valueProperty().addListener((o, was, now) -> {
+            if (!syncingFilters) onBrowseTopicChanged();
+        });
 
         startNew();
     }
 
     @Override
     protected void onShown() {
+        awaitingCourses = true;
         send(new Message(Command.GET_COURSES));
-        send(new Message(Command.GET_QUESTIONS));
+        requestBrowseBank();
     }
 
     // ===== actions ========================================================
@@ -126,7 +143,7 @@ public class QuestionsView extends AbstractScreenUI {
     @FXML
     private void onRefresh() {
         statusLabel.setText("Refreshing…");
-        send(new Message(Command.GET_QUESTIONS));
+        requestBrowseBank();
     }
 
     /** Picks an illustration file, size-checked, and previews it immediately. */
@@ -252,13 +269,20 @@ public class QuestionsView extends AbstractScreenUI {
                     applyDeleted((Integer) payload);       // surgical delete reply (NFR 18)
                 } else if (payload instanceof List) {
                     List<?> li = (List<?>) payload;
-                    if (!li.isEmpty() && li.get(0) instanceof Course) {
-                        courseBox.setItems(FXCollections.observableArrayList((List<Course>) li));
+                    if (awaitingCourses && (li.isEmpty() || li.get(0) instanceof Course)) {
+                        awaitingCourses = false;
+                        taughtCourses.clear();
+                        for (Object o : li) {
+                            if (o instanceof Course c) taughtCourses.add(c);
+                        }
+                        courseBox.setItems(FXCollections.observableArrayList(taughtCourses));
                         if (courseBox.getValue() == null && !courseBox.getItems().isEmpty())
                             courseBox.setValue(courseBox.getItems().get(0));
+                        refreshBrowseCourseCombo();
                     } else {
-                        updateBank((List<Question>) li);   // full bank: initial load / manual refresh
-                        statusLabel.setText("Bank: " + li.size() + " questions.");
+                        List<Question> bank = (List<Question>) li;
+                        applyBrowseResult(bank);
+                        statusLabel.setText("Bank: " + listView.getItems().size() + " questions.");
                     }
                 }
                 break;
@@ -266,6 +290,7 @@ public class QuestionsView extends AbstractScreenUI {
                 awaitingSave = false;
                 awaitingHistory = false;
                 awaitingImage = false;
+                awaitingCourses = false;
                 Alert a = new Alert(Alert.AlertType.ERROR, String.valueOf(msg.getPayload()));
                 a.setHeaderText("Server returned an error");
                 a.showAndWait();
@@ -341,6 +366,134 @@ public class QuestionsView extends AbstractScreenUI {
             }
             startNew(); // the edited/deleted item is gone
         }
+    }
+
+    private void requestBrowseBank() {
+        Course course = selectedBrowseCourse();
+        if (course == null) {
+            send(new Message(Command.GET_QUESTIONS));
+        } else {
+            // Load full course pool (topic filtered client-side so the topic combo stays complete).
+            send(new Message(Command.GET_QUESTIONS_FILTERED,
+                    new QuestionFilter(course.getId(), null, null)));
+        }
+    }
+
+    private void applyBrowseResult(List<Question> bank) {
+        topicPool.clear();
+        Course course = selectedBrowseCourse();
+        String topic = selectedBrowseTopic();
+        List<Question> scoped = new ArrayList<>();
+        if (course == null) {
+            for (Question q : bank) {
+                if (isTaughtCourse(q.getCourseId())) {
+                    scoped.add(q);
+                }
+            }
+            topicPool.addAll(scoped);
+        } else {
+            topicPool.addAll(bank);
+            scoped.addAll(bank);
+        }
+        if (topic != null) {
+            scoped.removeIf(q -> q.getTopic() == null
+                    || !topic.equalsIgnoreCase(q.getTopic().trim()));
+        }
+        refreshBrowseTopicCombo();
+        updateBank(scoped);
+    }
+
+    private boolean isTaughtCourse(int courseId) {
+        if (taughtCourses.isEmpty()) return true;
+        for (Course c : taughtCourses) {
+            if (c.getId() == courseId) return true;
+        }
+        return false;
+    }
+
+    private Course selectedBrowseCourse() {
+        String name = filterCourseBox == null ? null : filterCourseBox.getValue();
+        if (name == null || ALL_LABEL.equals(name)) return null;
+        for (Course c : taughtCourses) {
+            if (c.getName().equals(name)) return c;
+        }
+        return null;
+    }
+
+    /** Null means All topics. */
+    private String selectedBrowseTopic() {
+        String t = filterTopicBox == null ? null : filterTopicBox.getValue();
+        if (t == null || ALL_LABEL.equals(t) || t.isBlank()) return null;
+        return t.trim();
+    }
+
+    private void refreshBrowseCourseCombo() {
+        syncingFilters = true;
+        try {
+            List<String> items = new ArrayList<>();
+            items.add(ALL_LABEL);
+            for (Course c : taughtCourses) {
+                items.add(c.getName());
+            }
+            String keep = filterCourseBox.getValue();
+            filterCourseBox.setItems(FXCollections.observableArrayList(items));
+            if (keep != null && items.contains(keep)) {
+                filterCourseBox.setValue(keep);
+            } else {
+                filterCourseBox.setValue(ALL_LABEL);
+            }
+        } finally {
+            syncingFilters = false;
+        }
+    }
+
+    private void refreshBrowseTopicCombo() {
+        syncingFilters = true;
+        try {
+            TreeSet<String> topics = new TreeSet<>(String.CASE_INSENSITIVE_ORDER);
+            for (Question q : topicPool) {
+                if (q.getTopic() != null && !q.getTopic().isBlank()) {
+                    topics.add(q.getTopic().trim());
+                }
+            }
+            List<String> items = new ArrayList<>();
+            items.add(ALL_LABEL);
+            items.addAll(topics);
+            String keep = filterTopicBox.getValue();
+            filterTopicBox.setItems(FXCollections.observableArrayList(items));
+            if (keep != null && items.stream().anyMatch(s -> s.equalsIgnoreCase(keep))) {
+                filterTopicBox.setValue(
+                        items.stream().filter(s -> s.equalsIgnoreCase(keep)).findFirst().orElse(ALL_LABEL));
+            } else {
+                filterTopicBox.setValue(ALL_LABEL);
+            }
+        } finally {
+            syncingFilters = false;
+        }
+    }
+
+    private void onBrowseCourseChanged() {
+        syncingFilters = true;
+        try {
+            filterTopicBox.setValue(ALL_LABEL);
+        } finally {
+            syncingFilters = false;
+        }
+        statusLabel.setText("Loading…");
+        requestBrowseBank();
+    }
+
+    private void onBrowseTopicChanged() {
+        String topic = selectedBrowseTopic();
+        List<Question> scoped = new ArrayList<>();
+        for (Question q : topicPool) {
+            if (topic == null
+                    || (q.getTopic() != null && topic.equalsIgnoreCase(q.getTopic().trim()))) {
+                scoped.add(q);
+            }
+        }
+        updateBank(scoped);
+        statusLabel.setText("Bank: " + scoped.size() + " questions.");
     }
 
     // ===== form state =====================================================

@@ -8,6 +8,7 @@ import common.network.AutoExamRequest;
 import common.network.ExamRejectionRequest;
 import common.network.Message;
 import common.network.Message.Command;
+import common.network.PendingExamFilter;
 import server.db.CourseDAO;
 import server.db.ExamDAO;
 import server.db.QuestionSource;
@@ -131,13 +132,54 @@ public class ExamService {
     }
 
     /**
-     * Returns current exams waiting for coordinator approval.
+     * Returns current exams waiting for coordinator approval, scoped to the
+     * caller's subjects (and optional subject/course filter).
+     *
+     * <p>Payload: {@code null} or {@link PendingExamFilter}.</p>
      */
-    public Message getPending(User caller) {
+    public Message getPending(User caller, Object payload) {
         Authorization.requireRole(caller, Role.COORDINATOR);
 
+        Integer subjectId = null;
+        Integer courseId = null;
+        if (payload instanceof PendingExamFilter filter) {
+            subjectId = filter.getSubjectId();
+            courseId = filter.getCourseId();
+        } else if (payload != null) {
+            return error(
+                    "GET_PENDING_EXAMS requires null or a PendingExamFilter payload.");
+        }
+
+        if (subjectId != null
+                && !subjectDAO.isCoordinatorForSubject(caller.getId(), subjectId)) {
+            throw new AuthorizationException(
+                    "You may view pending exams only for subjects you coordinate.");
+        }
+        if (courseId != null
+                && !subjectDAO.isCoordinatorForCourse(caller.getId(), courseId)) {
+            throw new AuthorizationException(
+                    "You may view pending exams only for courses in subjects you coordinate.");
+        }
+        if (courseId != null && subjectId != null) {
+            final int courseIdFinal = courseId;
+            boolean belongs = courseDAO.listBySubject(subjectId).stream()
+                    .anyMatch(c -> c.getId() == courseIdFinal);
+            if (!belongs) {
+                return error("Course does not belong to the selected subject.");
+            }
+        }
+
+        var courseIds = courseDAO.courseIdsForCoordinator(
+                caller.getId(), subjectId, courseId);
         return success((Serializable)
-                examDAO.getPendingApproval());
+                examDAO.getPendingApprovalForCourses(courseIds));
+    }
+
+    /** Subjects this coordinator manages. Payload: null. */
+    public Message getMySubjects(User caller) {
+        Authorization.requireRole(caller, Role.COORDINATOR);
+        return success((Serializable)
+                subjectDAO.listByCoordinator(caller.getId()));
     }
 
     // ===== teacher actions ===============================================

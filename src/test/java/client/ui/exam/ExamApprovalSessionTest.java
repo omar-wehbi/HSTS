@@ -30,6 +30,27 @@ class ExamApprovalSessionTest {
     }
 
     @Test
+    void requestPendingSendsFilterPayload() {
+        session.setFilterSubjectId(3);
+        session.setFilterCourseId(7);
+        Message m = session.requestPending();
+        assertThat(m.getCommand()).isEqualTo(Command.GET_PENDING_EXAMS);
+        common.network.PendingExamFilter f =
+                (common.network.PendingExamFilter) m.getPayload();
+        assertThat(f.getSubjectId()).isEqualTo(3);
+        assertThat(f.getCourseId()).isEqualTo(7);
+    }
+
+    @Test
+    void changingSubjectClearsCourseFilter() {
+        session.setFilterSubjectId(1);
+        session.setFilterCourseId(2);
+        session.setFilterSubjectId(5);
+        assertThat(session.getFilterSubjectId()).isEqualTo(5);
+        assertThat(session.getFilterCourseId()).isNull();
+    }
+
+    @Test
     void approveSendsExamId() {
         Exam pending = exam(8, ExamStatus.PENDING_APPROVAL);
         session.onServerMessage(new Message(Command.SUCCESS, List.of(pending)));

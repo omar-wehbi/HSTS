@@ -50,6 +50,10 @@
                 <Button fx:id="refreshButton" onAction="#onRefresh"
                         styleClass="secondary-button" text="⟳ Refresh"/>
             </HBox>
+            <Label styleClass="field-label" text="COURSE"/>
+            <ComboBox fx:id="filterCourseBox" maxWidth="Infinity" promptText="Course"/>
+            <Label styleClass="field-label" text="TOPIC"/>
+            <ComboBox fx:id="filterTopicBox" maxWidth="Infinity" promptText="Topic"/>
             <ListView fx:id="listView" styleClass="questions-list" VBox.vgrow="ALWAYS"/>
         </VBox>
 

@@ -51,9 +51,12 @@ public class QuestionService {
 
     // ===== reads (any logged-in role) =====================================
 
-    /** All courses — needed by the bank UI's course picker. */
+    /** All courses for non-teachers; taught courses only for teachers. */
     public Message getCourses(User caller) {
         requireLoggedIn(caller);
+        if (caller.getRole() == Role.TEACHER) {
+            return success((Serializable) courseDAO.listForTeacher(caller.getId()));
+        }
         return success((Serializable) courseDAO.getAll());
     }
 

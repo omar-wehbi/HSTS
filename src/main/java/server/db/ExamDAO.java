@@ -115,6 +115,8 @@ public class ExamDAO {
 
     /**
      * Returns all current exams waiting for coordinator approval.
+     *
+     * @deprecated prefer {@link #getPendingApprovalForCourses(List)} for subject scope
      */
     public List<Exam> getPendingApproval() {
         try (Session session =
@@ -139,6 +141,40 @@ public class ExamDAO {
         } catch (Exception e) {
             System.err.println(
                     "[ExamDAO] getPendingApproval failed: "
+                            + e.getMessage());
+            return List.of();
+        }
+    }
+
+    /**
+     * Pending exams whose {@code courseId} is in {@code courseIds}.
+     * Empty {@code courseIds} yields an empty list (no courses in scope).
+     */
+    public List<Exam> getPendingApprovalForCourses(List<Integer> courseIds) {
+        if (courseIds == null || courseIds.isEmpty()) {
+            return List.of();
+        }
+        try (Session session =
+                     HibernateUtil.getSessionFactory().openSession()) {
+
+            List<Exam> exams = session.createQuery(
+                            "FROM Exam " +
+                                    "WHERE current = true " +
+                                    "AND status = :status " +
+                                    "AND courseId IN :courseIds " +
+                                    "ORDER BY id",
+                            Exam.class
+                    )
+                    .setParameter("status", ExamStatus.PENDING_APPROVAL)
+                    .setParameterList("courseIds", courseIds)
+                    .list();
+
+            loadQuestions(session, exams);
+            return exams;
+
+        } catch (Exception e) {
+            System.err.println(
+                    "[ExamDAO] getPendingApprovalForCourses failed: "
                             + e.getMessage());
             return List.of();
         }

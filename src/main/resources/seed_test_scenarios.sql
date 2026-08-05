@@ -21,7 +21,9 @@
 --      neta      Neta Berkovich     Algorithms          (co-teacher)
 --      ronit     Ronit Segev        Databases           (co-teacher)
 --    COORDINATOR / PRINCIPAL
---      coord     Yael Golan
+--      coord     Yael Golan      CS Theory only (Algorithms)
+--      coord2    Oren Levy      Data Systems + Computer Systems
+--                               (Databases, Networks) — scope negative demo
 --      principal Merav Solomon
 --    STUDENTS (id_number = national ID for exam start)
 --      maya      Maya Levi      207570227   Algorithms, Databases
@@ -38,7 +40,8 @@
 --    3  Build exams ........... questions have topic + difficulty;
 --                               Exams + ExamQuestions tables (V3) included;
 --                               sample DRAFT + PENDING_APPROVAL exams
---    4  Approve exam ........... one PENDING_APPROVAL exam for coord
+--    4  Approve exam ........... PENDING_APPROVAL: Algorithms for coord,
+--                               Databases for coord2 (subject-scoped)
 --    5  Release exam ........... ExamReleases (+ snapshot tables)
 --    6  Take exam ............. students have id_number; ExamSessions
 --    7–10 Grading / results .... Grades, execution statistics
@@ -359,12 +362,21 @@ DELETE FROM Exams;
 DELETE FROM Enrollments;
 DELETE FROM Users;
 DELETE FROM Questions;
-UPDATE Courses SET subject_id = NULL;
-DELETE FROM Subjects;
 DELETE FROM Courses;
--- Recreate Courses so subject_id exists even if this DB was created before V11
+-- Recreate Courses so subject_id exists even if this DB was created before V11.
+-- Do not UPDATE subject_id on the old table: CREATE TABLE IF NOT EXISTS above
+-- does not add columns, so pre-V11 DBs fail with "Unknown column 'subject_id'".
 SET FOREIGN_KEY_CHECKS = 0;
+DROP TABLE IF EXISTS Subjects;
 DROP TABLE IF EXISTS Courses;
+CREATE TABLE Subjects (
+    id              INT          NOT NULL AUTO_INCREMENT,
+    name            VARCHAR(255) NOT NULL,
+    code            TINYINT      NOT NULL,
+    coordinator_id  INT          NULL,
+    PRIMARY KEY (id),
+    UNIQUE KEY uq_subjects_code (code)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 CREATE TABLE Courses (
     id    INT          NOT NULL AUTO_INCREMENT,
     name  VARCHAR(255) NOT NULL,
@@ -505,15 +517,18 @@ INSERT INTO Users (username, password, role, display_name, id_number) VALUES
     ('tamar',     SHA2('1234', 256), 'STUDENT',     'Tamar Rosen',                '311887766'),
     ('avigail',   SHA2('1234', 256), 'STUDENT',     'Avigail Katz',               '309112233'),
     ('neta',      SHA2('1234', 256), 'TEACHER',     'Neta Berkovich (Teacher)',   NULL),
-    ('ronit',     SHA2('1234', 256), 'TEACHER',     'Ronit Segev (Teacher)',      NULL);
+    ('ronit',     SHA2('1234', 256), 'TEACHER',     'Ronit Segev (Teacher)',      NULL),
+    ('coord2',    SHA2('1234', 256), 'COORDINATOR', 'Oren Levy (Coordinator)',    NULL);
 
--- ---- Subjects (semester PDF): courses belong to a subject; Yael coordinates all ----
+-- ---- Subjects (semester PDF): one coordinator per subject (split for scope demos) ----
+--   coord  → CS Theory (Algorithms) — seeded pending exam stays approvable by Yael
+--   coord2 → Data Systems + Computer Systems (Databases, Networks)
 INSERT INTO Subjects (name, code, coordinator_id)
 SELECT 'CS Theory', 1, u.id FROM Users u WHERE u.username = 'coord'
 UNION ALL
-SELECT 'Data Systems', 2, u.id FROM Users u WHERE u.username = 'coord'
+SELECT 'Data Systems', 2, u.id FROM Users u WHERE u.username = 'coord2'
 UNION ALL
-SELECT 'Computer Systems', 3, u.id FROM Users u WHERE u.username = 'coord';
+SELECT 'Computer Systems', 3, u.id FROM Users u WHERE u.username = 'coord2';
 
 UPDATE Courses c
 JOIN Subjects s ON s.code = c.id
@@ -589,7 +604,7 @@ CROSS JOIN (
 ) q
 WHERE e.title = 'Algorithms Approved Quiz';
 
--- ---- Ronit (Databases teacher): draft exam for multi-teacher demos ----
+-- ---- Ronit (Databases teacher): draft + pending for multi-teacher / coord2 demos ----
 INSERT INTO Exams
     (course_id, teacher_id, title, duration_minutes,
      student_instructions, teacher_notes, status, version, is_current)
@@ -600,7 +615,19 @@ SELECT
     'DRAFT', 1, TRUE
 FROM Users u WHERE u.username = 'ronit';
 
-UPDATE Exams SET base_id = id WHERE base_id IS NULL AND title = 'Databases Spot Check (Draft)';
+INSERT INTO Exams
+    (course_id, teacher_id, title, duration_minutes,
+     student_instructions, teacher_notes, status, version, is_current)
+SELECT
+    2, u.id, 'Databases Quiz (Pending)', 50,
+    'Closed book SQL quiz.',
+    'Waiting for coord2 (Data Systems) approval — out of scope for coord.',
+    'PENDING_APPROVAL', 1, TRUE
+FROM Users u WHERE u.username = 'ronit';
+
+UPDATE Exams SET base_id = id
+WHERE base_id IS NULL
+  AND title IN ('Databases Spot Check (Draft)', 'Databases Quiz (Pending)');
 
 INSERT INTO ExamQuestions (exam_id, question_id, points, position)
 SELECT e.id, q.question_id, 25, q.position
@@ -612,7 +639,7 @@ CROSS JOIN (
     SELECT 6, 3 UNION ALL
     SELECT 28, 4
 ) q
-WHERE e.title = 'Databases Spot Check (Draft)';
+WHERE e.title IN ('Databases Spot Check (Draft)', 'Databases Quiz (Pending)');
 
 -- ---- Scenario 13–14: CourseTeachers (A1: Dana + Neta on Algorithms;
 --      Dana + Ronit on Databases). Also fold any exam authors. ----
