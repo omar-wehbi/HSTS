@@ -112,6 +112,10 @@ public class QuestionService {
         Question q = (Question) payload;
         String invalid = QuestionValidator.validate(q);
         if (invalid != null) return error(invalid);
+        if (!courseDAO.isTeacherAssigned(caller.getId(), q.getCourseId())) {
+            throw new AuthorizationException(
+                    "You may add questions only for courses you teach.");
+        }
 
         Question saved = questionDAO.add(q);
         return (saved != null) ? success(withoutImageBytes(saved)) : error("Add failed.");
@@ -128,6 +132,10 @@ public class QuestionService {
         if (invalid != null) return error(invalid);
         if (q.getBaseId() <= 0) {
             return error("UPDATE_QUESTION requires the question's version-family id (baseId).");
+        }
+        if (!courseDAO.isTeacherAssigned(caller.getId(), q.getCourseId())) {
+            throw new AuthorizationException(
+                    "You may edit questions only for courses you teach.");
         }
 
         Question updated = questionDAO.update(q);

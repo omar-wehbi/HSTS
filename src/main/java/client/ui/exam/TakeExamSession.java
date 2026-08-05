@@ -5,6 +5,7 @@ import common.entities.ExamSessionStatus;
 import common.entities.StudentAnswer;
 import common.network.ExamForm;
 import common.network.ExamFormQuestion;
+import common.network.ExamPreview;
 import common.network.Message;
 import common.network.Message.Command;
 import common.network.SaveAnswersRequest;
@@ -18,20 +19,31 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-/** Testable state for taking an exam (scenario 6). */
+/** Testable state for taking an exam (scenario 6) — two-step start: preview then ID. */
 public class TakeExamSession {
 
     private ExamForm examForm;
+    private ExamPreview preview;
+    private String previewCode;
     private final Map<Integer, Integer> answers = new LinkedHashMap<>();
     private String statusText = "";
     private String lastError;
     private boolean submitted;
+    private boolean awaitingPreview;
     private boolean awaitingStart;
     private boolean awaitingSave;
     private boolean awaitingSubmit;
 
     public ExamForm getExamForm() {
         return examForm;
+    }
+
+    public ExamPreview getPreview() {
+        return preview;
+    }
+
+    public boolean hasPreview() {
+        return preview != null;
     }
 
     public Map<Integer, Integer> getAnswers() {
@@ -54,12 +66,33 @@ public class TakeExamSession {
         return awaitingStart;
     }
 
+    public boolean isAwaitingPreview() {
+        return awaitingPreview;
+    }
+
     public boolean isEditable() {
         return examForm != null && !submitted;
     }
 
-    public Message requestStart(String executionCode, String idNumber) {
+    /** Step 1: look up open release by code (no timer / no answers). */
+    public Message requestPreview(String executionCode) {
         if (executionCode == null || executionCode.isBlank()) {
+            lastError = "Execution code is required.";
+            return null;
+        }
+        awaitingPreview = true;
+        statusText = "Looking up exam…";
+        lastError = null;
+        previewCode = executionCode.trim();
+        return new Message(Command.PREVIEW_EXAM_BY_CODE, previewCode);
+    }
+
+    /** Step 2: enter ID and start timed session (uses code from preview when set). */
+    public Message requestStart(String executionCode, String idNumber) {
+        String code = (executionCode != null && !executionCode.isBlank())
+                ? executionCode.trim()
+                : previewCode;
+        if (code == null || code.isBlank()) {
             lastError = "Execution code is required.";
             return null;
         }
@@ -71,7 +104,7 @@ public class TakeExamSession {
         statusText = "Starting exam…";
         lastError = null;
         return new Message(Command.START_EXAM_SESSION,
-                new StartExamRequest(executionCode.trim(), idNumber.trim()));
+                new StartExamRequest(code, idNumber.trim()));
     }
 
     public void recordAnswer(int questionId, int selectedOption) {
@@ -133,8 +166,14 @@ public class TakeExamSession {
         switch (msg.getCommand()) {
             case SUCCESS -> {
                 Object payload = msg.getPayload();
-                if (payload instanceof ExamForm form) {
+                if (payload instanceof ExamPreview p) {
+                    awaitingPreview = false;
+                    preview = p;
+                    statusText = "Exam found: " + p.getExamTitle()
+                            + " — enter your ID to start the timer.";
+                } else if (payload instanceof ExamForm form) {
                     awaitingStart = false;
+                    awaitingPreview = false;
                     examForm = form;
                     answers.clear();
                     submitted = false;
@@ -159,6 +198,7 @@ public class TakeExamSession {
                 }
             }
             case ERROR -> {
+                awaitingPreview = false;
                 awaitingStart = false;
                 awaitingSave = false;
                 awaitingSubmit = false;

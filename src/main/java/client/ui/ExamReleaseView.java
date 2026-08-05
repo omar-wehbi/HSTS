@@ -41,11 +41,11 @@ public class ExamReleaseView extends AbstractScreenUI {
 
     @FXML private ListView<Exam> approvedList;
     @FXML private ListView<ExamRelease> releaseList;
-    @FXML private TextField codeField, openTimeField, extendMinutesField;
-    @FXML private DatePicker openDatePicker;
+    @FXML private TextField codeField, openTimeField, closeTimeField, extendMinutesField;
+    @FXML private DatePicker openDatePicker, closeDatePicker;
     @FXML private TextArea summaryArea;
     @FXML private Label statusLabel, selectedExamLabel, closePreviewLabel;
-    @FXML private Button releaseButton;
+    @FXML private Button releaseButton, suggestCloseButton;
 
     @Override
     public Parent render() {
@@ -72,10 +72,10 @@ public class ExamReleaseView extends AbstractScreenUI {
                     if (syncingLists) return;
                     onReleaseSelected(n);
                 });
-        openDatePicker.valueProperty().addListener((o, w, n) -> refreshClosePreview());
-        openTimeField.textProperty().addListener((o, w, n) -> refreshClosePreview());
+        openDatePicker.valueProperty().addListener((o, w, n) -> refreshCloseHint());
+        openTimeField.textProperty().addListener((o, w, n) -> refreshCloseHint());
         refreshSelectedExamLabel(null);
-        refreshClosePreview();
+        refreshCloseHint();
     }
 
     @Override
@@ -97,18 +97,41 @@ public class ExamReleaseView extends AbstractScreenUI {
             return;
         }
         LocalDateTime open = parseOpenDateTime();
+        LocalDateTime close = parseCloseDateTime();
         if (open == null) {
             alert("Enter a valid open date and time (HH:mm).");
             return;
         }
+        if (close == null) {
+            alert("Enter a valid close date and time (HH:mm).");
+            return;
+        }
         Message msg = session.requestRelease(
-                exam.getId(), codeField.getText(), open, exam.getDurationMinutes());
+                exam.getId(), codeField.getText(), open, close);
         if (msg == null) {
             alert(session.getLastError());
             return;
         }
         send(msg);
         refreshStatus();
+    }
+
+    @FXML
+    private void onSuggestClose() {
+        Exam exam = session.getSelectedExam();
+        LocalDateTime open = parseOpenDateTime();
+        if (exam == null || open == null || exam.getDurationMinutes() <= 0) {
+            alert("Select an exam and enter a valid open date/time first.");
+            return;
+        }
+        LocalDateTime suggested = ExamReleaseSession.suggestClose(open, exam.getDurationMinutes());
+        if (suggested == null) return;
+        if (closeDatePicker != null) closeDatePicker.setValue(suggested.toLocalDate());
+        if (closeTimeField != null) {
+            closeTimeField.setText(String.format("%02d:%02d",
+                    suggested.getHour(), suggested.getMinute()));
+        }
+        refreshCloseHint();
     }
 
     @FXML
@@ -138,10 +161,11 @@ public class ExamReleaseView extends AbstractScreenUI {
         session.setSelectedExam(exam);
         refreshSelectedExamLabel(exam);
         releaseButton.setDisable(exam == null);
+        if (suggestCloseButton != null) suggestCloseButton.setDisable(exam == null);
         if (exam != null) {
             codeField.clear();
         }
-        refreshClosePreview();
+        refreshCloseHint();
     }
 
     private void onReleaseSelected(ExamRelease release) {
@@ -202,7 +226,10 @@ public class ExamReleaseView extends AbstractScreenUI {
         }
         refreshSelectedExamLabel(session.getSelectedExam());
         releaseButton.setDisable(session.getSelectedExam() == null);
-        refreshClosePreview();
+        if (suggestCloseButton != null) {
+            suggestCloseButton.setDisable(session.getSelectedExam() == null);
+        }
+        refreshCloseHint();
         refreshStatus();
     }
 
@@ -216,22 +243,31 @@ public class ExamReleaseView extends AbstractScreenUI {
                 + " (" + exam.getDurationMinutes() + " min)");
     }
 
-    private void refreshClosePreview() {
+    private void refreshCloseHint() {
         if (closePreviewLabel == null) return;
         Exam exam = session.getSelectedExam();
         LocalDateTime open = parseOpenDateTime();
         if (exam == null || open == null || exam.getDurationMinutes() <= 0) {
-            closePreviewLabel.setText("—");
+            closePreviewLabel.setText("Tip: set close independently of allotted duration");
             return;
         }
-        LocalDateTime close = ExamReleaseSession.computeClose(open, exam.getDurationMinutes());
-        closePreviewLabel.setText(close == null ? "—" : CLOSE_FMT.format(close)
-                + "  (+" + exam.getDurationMinutes() + " min)");
+        LocalDateTime suggested = ExamReleaseSession.suggestClose(open, exam.getDurationMinutes());
+        closePreviewLabel.setText(suggested == null ? "—"
+                : "Suggested close: " + CLOSE_FMT.format(suggested)
+                + "  (open + " + exam.getDurationMinutes() + " min)");
     }
 
     private LocalDateTime parseOpenDateTime() {
-        LocalDate date = openDatePicker == null ? null : openDatePicker.getValue();
-        String timeText = openTimeField == null ? null : openTimeField.getText();
+        return parseDateTime(openDatePicker, openTimeField);
+    }
+
+    private LocalDateTime parseCloseDateTime() {
+        return parseDateTime(closeDatePicker, closeTimeField);
+    }
+
+    private static LocalDateTime parseDateTime(DatePicker datePicker, TextField timeField) {
+        LocalDate date = datePicker == null ? null : datePicker.getValue();
+        String timeText = timeField == null ? null : timeField.getText();
         if (date == null || timeText == null || timeText.isBlank()) return null;
         try {
             LocalTime time = LocalTime.parse(timeText.trim());

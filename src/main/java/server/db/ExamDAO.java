@@ -555,14 +555,26 @@ public class ExamDAO {
     @SuppressWarnings("unchecked")
     private void loadCourseNames(Session session, List<Exam> exams) {
         if (exams.isEmpty()) return;
-        List<Object[]> rows = session.createNativeQuery(
-                "SELECT id, name FROM Courses", Object[].class).list();
-        Map<Integer, String> map = new HashMap<>();
+        List<Object[]> rows;
+        try {
+            rows = session.createNativeQuery(
+                    "SELECT c.id, c.name, COALESCE(s.code, c.id) AS subject_code "
+                            + "FROM Courses c LEFT JOIN Subjects s ON s.id = c.subject_id",
+                    Object[].class).list();
+        } catch (Exception e) {
+            rows = session.createNativeQuery(
+                    "SELECT id, name, id AS subject_code FROM Courses", Object[].class).list();
+        }
+        Map<Integer, String> names = new HashMap<>();
+        Map<Integer, Integer> subjectCodes = new HashMap<>();
         for (Object[] row : rows) {
-            map.put((Integer) row[0], (String) row[1]);
+            int id = ((Number) row[0]).intValue();
+            names.put(id, (String) row[1]);
+            subjectCodes.put(id, ((Number) row[2]).intValue());
         }
         for (Exam exam : exams) {
-            exam.setCourseName(map.getOrDefault(exam.getCourseId(), "Course #" + exam.getCourseId()));
+            exam.setCourseName(names.getOrDefault(exam.getCourseId(), "Course #" + exam.getCourseId()));
+            exam.setSubjectCode(subjectCodes.getOrDefault(exam.getCourseId(), exam.getCourseId()));
         }
     }
 

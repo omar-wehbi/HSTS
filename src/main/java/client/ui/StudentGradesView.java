@@ -15,10 +15,12 @@ import javafx.scene.control.Label;
 import javafx.scene.control.ListCell;
 import javafx.scene.control.ListView;
 import javafx.scene.control.TextArea;
+import javafx.stage.FileChooser;
 import org.greenrobot.eventbus.Subscribe;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.nio.file.Files;
 
 /** Student grades screen (scenario 9). */
 public class StudentGradesView extends AbstractScreenUI {
@@ -56,6 +58,28 @@ public class StudentGradesView extends AbstractScreenUI {
 
     @FXML private void onBackToMenu() { goHome(); }
     @FXML private void onRefresh() { send(session.requestResults()); refreshStatus(); }
+
+    @FXML
+    private void onSaveCopy() {
+        byte[] pdf = session.exportCheckedExamPdf();
+        if (pdf == null) {
+            alert(session.getLastError() != null ? session.getLastError() : "Nothing to export.");
+            return;
+        }
+        FileChooser chooser = new FileChooser();
+        chooser.setTitle("Save checked exam copy");
+        chooser.getExtensionFilters().add(
+                new FileChooser.ExtensionFilter("PDF", "*.pdf"));
+        chooser.setInitialFileName("checked-exam.pdf");
+        var file = chooser.showSaveDialog(detailArea.getScene().getWindow());
+        if (file == null) return;
+        try {
+            Files.write(file.toPath(), pdf);
+            statusLabel.setText("Saved copy to " + file.getName());
+        } catch (IOException e) {
+            alert("Could not save file: " + e.getMessage());
+        }
+    }
 
     private void onResultSelected(StudentResultSummary summary) {
         session.setSelected(summary);

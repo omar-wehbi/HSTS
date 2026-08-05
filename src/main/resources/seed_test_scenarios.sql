@@ -8,9 +8,31 @@
 --
 --  Safe to re-run at any time (wipes and re-creates the data).
 --
+--  Cast is modelled on Assignment 1 acceptance fixtures, mapped onto
+--  the CS courses this codebase uses (Algorithms / Databases / Networks
+--  instead of Math / Biology / Physics). Password for EVERY user: 1234
+--
+--  Stable logins required by automated tests (do not rename):
+--    teacher / coord / principal / maya / noa
+--
+--  Full login roster:
+--    TEACHERS
+--      teacher   Dana Avni          Algorithms, Databases
+--      neta      Neta Berkovich     Algorithms          (co-teacher)
+--      ronit     Ronit Segev        Databases           (co-teacher)
+--    COORDINATOR / PRINCIPAL
+--      coord     Yael Golan
+--      principal Merav Solomon
+--    STUDENTS (id_number = national ID for exam start)
+--      maya      Maya Levi      207570227   Algorithms, Databases
+--      noa       Noa Barak      315497081   Databases, Networks
+--      shira     Shira Cohen    312456789   Algorithms, Networks
+--      tamar     Tamar Rosen    311887766   Algorithms, Databases
+--      avigail   Avigail Katz   309112233   Algorithms
+--
 --  Scenario coverage (required features 1-14):
---    1  Login ................. 5 users, one per role (+2nd student)
---    2  Question bank ......... 8 questions across 3 courses, incl.
+--    1  Login ................. full A1-scale cast (roles + enrollments)
+--    2  Question bank ......... questions across 3 courses, incl.
 --                               one EDITED question proving versioning
 --                               (v1 kept, v2 current)
 --    3  Build exams ........... questions have topic + difficulty;
@@ -38,7 +60,17 @@ USE hsts_a3_db;
 CREATE TABLE IF NOT EXISTS Courses (
     id    INT          NOT NULL AUTO_INCREMENT,
     name  VARCHAR(255) NOT NULL,
+    subject_id INT     NULL,
     PRIMARY KEY (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS Subjects (
+    id              INT          NOT NULL AUTO_INCREMENT,
+    name            VARCHAR(255) NOT NULL,
+    code            TINYINT      NOT NULL,
+    coordinator_id  INT          NULL,
+    PRIMARY KEY (id),
+    UNIQUE KEY uq_subjects_code (code)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS Questions (
@@ -327,7 +359,19 @@ DELETE FROM Exams;
 DELETE FROM Enrollments;
 DELETE FROM Users;
 DELETE FROM Questions;
+UPDATE Courses SET subject_id = NULL;
+DELETE FROM Subjects;
 DELETE FROM Courses;
+-- Recreate Courses so subject_id exists even if this DB was created before V11
+SET FOREIGN_KEY_CHECKS = 0;
+DROP TABLE IF EXISTS Courses;
+CREATE TABLE Courses (
+    id    INT          NOT NULL AUTO_INCREMENT,
+    name  VARCHAR(255) NOT NULL,
+    subject_id INT     NULL,
+    PRIMARY KEY (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+SET FOREIGN_KEY_CHECKS = 1;
 ALTER TABLE StudyBotHistory AUTO_INCREMENT = 1;
 ALTER TABLE StudyBotSources AUTO_INCREMENT = 1;
 ALTER TABLE ReleasedExamQuestions AUTO_INCREMENT = 1;
@@ -339,9 +383,10 @@ ALTER TABLE ExamQuestions AUTO_INCREMENT = 1;
 ALTER TABLE Exams         AUTO_INCREMENT = 1;
 ALTER TABLE Users         AUTO_INCREMENT = 1;
 ALTER TABLE Questions     AUTO_INCREMENT = 1;
+ALTER TABLE Subjects      AUTO_INCREMENT = 1;
 ALTER TABLE Courses       AUTO_INCREMENT = 1;
 
--- ---- Scenario 2/3: courses ----
+-- ---- Scenario 2/3: courses (subject link filled after users/subjects) ----
 INSERT INTO Courses (name) VALUES
     ('Algorithms'),         -- id 1
     ('Databases'),          -- id 2
@@ -444,26 +489,52 @@ VALUES
     (1, 'What is the worst-case time complexity of binary search on a sorted array of n elements?',
         'O(n)', 'O(log n)', 'O(n log n)', 'O(1)', 2, 'Complexity', 'EASY', 1, 3, TRUE);
 
--- ---- Scenario 1: one user per role (password 1234 for all) ----
+-- ---- Scenario 1: A1-scale cast (password 1234 for all) ----
 -- Passwords are stored as SHA-256 hashes (never plaintext); the server hashes
 -- the typed password before comparing (see server.db.PasswordHasher).
+--
+-- First five rows keep fixed usernames (and maya's id_number) that the JUnit
+-- suite authenticates against. Extra rows mirror Assignment 1 personas.
 INSERT INTO Users (username, password, role, display_name, id_number) VALUES
-    ('teacher',   SHA2('1234', 256), 'TEACHER',     'Dana Cohen (Teacher)',     NULL),
-    ('coord',     SHA2('1234', 256), 'COORDINATOR', 'Yossi Levi (Coordinator)', NULL),
-    ('principal', SHA2('1234', 256), 'PRINCIPAL',   'Rita Bar (Principal)',     NULL),
-    ('maya',      SHA2('1234', 256), 'STUDENT',     'Maya Student',             '207570227'),
-    ('noa',       SHA2('1234', 256), 'STUDENT',     'Noa Student',              '315497081');
+    ('teacher',   SHA2('1234', 256), 'TEACHER',     'Dana Avni (Teacher)',        NULL),
+    ('coord',     SHA2('1234', 256), 'COORDINATOR', 'Yael Golan (Coordinator)',   NULL),
+    ('principal', SHA2('1234', 256), 'PRINCIPAL',   'Merav Solomon (Principal)',  NULL),
+    ('maya',      SHA2('1234', 256), 'STUDENT',     'Maya Levi',                  '207570227'),
+    ('noa',       SHA2('1234', 256), 'STUDENT',     'Noa Barak',                  '315497081'),
+    ('shira',     SHA2('1234', 256), 'STUDENT',     'Shira Cohen',                '312456789'),
+    ('tamar',     SHA2('1234', 256), 'STUDENT',     'Tamar Rosen',                '311887766'),
+    ('avigail',   SHA2('1234', 256), 'STUDENT',     'Avigail Katz',               '309112233'),
+    ('neta',      SHA2('1234', 256), 'TEACHER',     'Neta Berkovich (Teacher)',   NULL),
+    ('ronit',     SHA2('1234', 256), 'TEACHER',     'Ronit Segev (Teacher)',      NULL);
 
--- ---- Scenario 14: enrollment (maya+noa in Algorithms & Databases,
---      NOT in Computer Networks — gives a negative case to test) ----
+-- ---- Subjects (semester PDF): courses belong to a subject; Yael coordinates all ----
+INSERT INTO Subjects (name, code, coordinator_id)
+SELECT 'CS Theory', 1, u.id FROM Users u WHERE u.username = 'coord'
+UNION ALL
+SELECT 'Data Systems', 2, u.id FROM Users u WHERE u.username = 'coord'
+UNION ALL
+SELECT 'Computer Systems', 3, u.id FROM Users u WHERE u.username = 'coord';
+
+UPDATE Courses c
+JOIN Subjects s ON s.code = c.id
+SET c.subject_id = s.id;
+
+-- ---- Enrollments (A1 pattern → CS courses) ----
+--   Algorithms (1): maya, shira, tamar, avigail
+--   Databases  (2): maya, noa, tamar
+--   Networks   (3): noa, shira
+-- maya is deliberately NOT in Networks (negative enrollment demo / UserDAOTest).
 INSERT INTO Enrollments (user_id, course_id)
-SELECT u.id, c.id
-FROM Users u JOIN Courses c
-WHERE u.username IN ('maya', 'noa') AND c.id IN (1, 2);
+SELECT u.id, c.id FROM Users u JOIN Courses c
+WHERE (u.username = 'maya'    AND c.id IN (1, 2))
+   OR (u.username = 'noa'     AND c.id IN (2, 3))
+   OR (u.username = 'shira'   AND c.id IN (1, 3))
+   OR (u.username = 'tamar'   AND c.id IN (1, 2))
+   OR (u.username = 'avigail' AND c.id = 1);
 
 -- ---- Scenarios 3–4: sample exams for teacher / coordinator UIs ----
 -- Exam display id: until Person 3 ships a 6-digit codec, the UI shows
--- "#" + base_id (see docs/PERSON5_UI.md). teacher_id = 1 (Dana).
+-- "#" + base_id (see docs/PERSON5_UI.md). teacher_id = 1 (Dana / teacher).
 -- Four current Algorithms questions × 25 pts = 100.
 
 INSERT INTO Exams
@@ -518,6 +589,38 @@ CROSS JOIN (
 ) q
 WHERE e.title = 'Algorithms Approved Quiz';
 
--- ---- Scenario 13–14: teacher assigned to Algorithms & Databases ----
+-- ---- Ronit (Databases teacher): draft exam for multi-teacher demos ----
+INSERT INTO Exams
+    (course_id, teacher_id, title, duration_minutes,
+     student_instructions, teacher_notes, status, version, is_current)
+SELECT
+    2, u.id, 'Databases Spot Check (Draft)', 40,
+    'Answer all SQL questions.',
+    'Owned by Ronit — proves a second teacher in the drawer.',
+    'DRAFT', 1, TRUE
+FROM Users u WHERE u.username = 'ronit';
+
+UPDATE Exams SET base_id = id WHERE base_id IS NULL AND title = 'Databases Spot Check (Draft)';
+
+INSERT INTO ExamQuestions (exam_id, question_id, points, position)
+SELECT e.id, q.question_id, 25, q.position
+FROM Exams e
+CROSS JOIN (
+    -- Stable current Databases questions from the bank (ids 4–6, 28-ish pool)
+    SELECT 4 AS question_id, 1 AS position UNION ALL
+    SELECT 5, 2 UNION ALL
+    SELECT 6, 3 UNION ALL
+    SELECT 28, 4
+) q
+WHERE e.title = 'Databases Spot Check (Draft)';
+
+-- ---- Scenario 13–14: CourseTeachers (A1: Dana + Neta on Algorithms;
+--      Dana + Ronit on Databases). Also fold any exam authors. ----
+INSERT IGNORE INTO CourseTeachers (course_id, teacher_id)
+SELECT c.id, u.id FROM Courses c JOIN Users u
+WHERE (u.username = 'teacher' AND c.id IN (1, 2))
+   OR (u.username = 'neta'    AND c.id = 1)
+   OR (u.username = 'ronit'   AND c.id = 2);
+
 INSERT IGNORE INTO CourseTeachers (course_id, teacher_id)
 SELECT DISTINCT course_id, teacher_id FROM Exams;

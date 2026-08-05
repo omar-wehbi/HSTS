@@ -27,13 +27,17 @@ class ExamStatusLabelTest {
     }
 
     @Test
-    void displayIdUsesBaseIdThenId() {
+    void displayIdUsesSixDigitCodec() {
         Exam exam = new Exam();
         exam.setId(7);
         exam.setBaseId(0);
-        assertThat(ExamStatusLabel.displayId(exam)).isEqualTo("#7");
+        exam.setCourseId(1);
+        exam.setSubjectCode(1);
+        assertThat(ExamStatusLabel.displayId(exam)).isEqualTo("000711");
 
         exam.setBaseId(12);
-        assertThat(ExamStatusLabel.displayId(exam)).isEqualTo("#12");
+        exam.setCourseId(2);
+        exam.setSubjectCode(2);
+        assertThat(ExamStatusLabel.displayId(exam)).isEqualTo("001222");
     }
 }

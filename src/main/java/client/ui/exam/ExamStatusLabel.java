@@ -41,18 +41,24 @@ public final class ExamStatusLabel {
             return "Waiting for the subject coordinator.";
         }
         if (exam.getStatus() == ExamStatus.APPROVED) {
-            return "Approved — ready for release (Person 4).";
+            return "Approved — ready for release.";
         }
         return "Editable draft.";
     }
 
     /**
-     * Display id until Person 3 ships a 6-digit codec: {@code #} + {@code baseId}
-     * (falls back to row {@code id} when baseId is unset).
+     * Six-digit semester display id: sequence + course code + subject code.
+     * Course id doubles as course code when codes are 1–9 (seed convention).
      */
     public static String displayId(Exam exam) {
-        if (exam == null) return "#?";
-        int family = exam.getBaseId() > 0 ? exam.getBaseId() : exam.getId();
-        return "#" + family;
+        if (exam == null) return "000000";
+        int family = exam.getBaseId() > 0 ? exam.getBaseId() : Math.max(exam.getId(), 1);
+        int courseCode = Math.floorMod(exam.getCourseId(), 10);
+        int subjectCode = exam.getSubjectCode() > 0
+                ? Math.floorMod(exam.getSubjectCode(), 10)
+                : courseCode;
+        if (family > 9999) family = family % 10000;
+        if (family < 1) family = 1;
+        return common.util.ExamDisplayId.format(family, courseCode, subjectCode);
     }
 }

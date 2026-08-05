@@ -37,9 +37,10 @@ public class TakeExamView extends AbstractScreenUI {
 
     @FXML private TextField codeField, idField;
     @FXML private Label examTitleLabel, instructionsLabel, timerLabel;
-    @FXML private Label confirmationLabel, statusLabel;
+    @FXML private Label confirmationLabel, statusLabel, previewLabel;
     @FXML private VBox questionsBox;
     @FXML private HBox startBox, actionBox;
+    @FXML private javafx.scene.control.Button previewButton, startButton;
 
     @Override
     public Parent render() {
@@ -61,6 +62,17 @@ public class TakeExamView extends AbstractScreenUI {
         stopTimer();
         User user = ScreenManager.getInstance().getCurrentUser();
         ScreenManager.getInstance().setScreen(user != null ? new HomeView(user) : new LoginView());
+    }
+
+    @FXML
+    private void onPreview() {
+        Message msg = session.requestPreview(codeField.getText());
+        if (msg == null) {
+            alert(session.getLastError());
+            return;
+        }
+        send(msg);
+        refreshStatus();
     }
 
     @FXML
@@ -101,6 +113,21 @@ public class TakeExamView extends AbstractScreenUI {
         session.onServerMessage(event.getMessage());
         if (event.getMessage().getCommand() == Message.Command.ERROR) {
             alert(session.getLastError());
+        }
+        if (session.hasPreview() && session.getExamForm() == null) {
+            var preview = session.getPreview();
+            if (previewLabel != null) {
+                previewLabel.setText("Found: " + preview.getExamTitle()
+                        + " (" + preview.getDurationMinutes() + " min, "
+                        + preview.getQuestionCount() + " questions). "
+                        + "Enter your ID and start — answers stay locked until then.");
+            }
+            if (preview.getStudentInstructions() != null) {
+                instructionsLabel.setText(preview.getStudentInstructions());
+            }
+            examTitleLabel.setText(preview.getExamTitle());
+            if (idField != null) idField.setDisable(false);
+            if (startButton != null) startButton.setDisable(false);
         }
         ExamForm form = session.getExamForm();
         if (form != null && questionsBox.getChildren().isEmpty()) {

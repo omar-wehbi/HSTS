@@ -61,6 +61,31 @@ public class StudentGradesSession {
         return new Message(Command.GET_CHECKED_EXAM, gradeId);
     }
 
+    /** Plain-text copy of the loaded checked exam (semester PDF §7.1). */
+    public String exportCheckedExamText() {
+        if (checkedExam == null) {
+            lastError = "Load a checked exam first.";
+            return null;
+        }
+        lastError = null;
+        return common.util.CheckedExamExporter.toText(checkedExam);
+    }
+
+    /** PDF bytes of the loaded checked exam. */
+    public byte[] exportCheckedExamPdf() {
+        if (checkedExam == null) {
+            lastError = "Load a checked exam first.";
+            return null;
+        }
+        try {
+            lastError = null;
+            return common.util.CheckedExamExporter.toPdf(checkedExam);
+        } catch (Exception e) {
+            lastError = "Could not build PDF: " + e.getMessage();
+            return null;
+        }
+    }
+
     @SuppressWarnings("unchecked")
     public void onServerMessage(Message msg) {
         if (msg == null) return;

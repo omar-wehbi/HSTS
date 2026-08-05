@@ -15,8 +15,10 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import server.db.CourseDAO;
 import server.db.ExamDAO;
 import server.db.QuestionSource;
+import server.db.SubjectDAO;
 
 import java.util.List;
 
@@ -25,6 +27,7 @@ import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -49,11 +52,21 @@ class ExamServiceTest {
     @Mock
     private AutoExamGenerator autoExamGenerator;
 
+    @Mock
+    private CourseDAO courseDAO;
+
+    @Mock
+    private SubjectDAO subjectDAO;
+
     private ExamService service() {
+        lenient().when(courseDAO.isTeacherAssigned(anyInt(), anyInt())).thenReturn(true);
+        lenient().when(subjectDAO.isCoordinatorForCourse(anyInt(), anyInt())).thenReturn(true);
         return new ExamService(
                 examDAO,
                 questionSource,
-                autoExamGenerator
+                autoExamGenerator,
+                courseDAO,
+                subjectDAO
         );
     }
 
@@ -459,6 +472,44 @@ class ExamServiceTest {
                 .isNull();
 
         verify(examDAO).create(exam);
+    }
+
+    @Test
+    void teacherCannotCreateExamForCourseTheyDoNotTeach() {
+        when(courseDAO.isTeacherAssigned(10, 1)).thenReturn(false);
+        ExamService s = new ExamService(examDAO, questionSource, autoExamGenerator, courseDAO, subjectDAO);
+
+        assertThatExceptionOfType(AuthorizationException.class)
+                .isThrownBy(() -> s.create(teacher(), validExam()))
+                .withMessageContaining("courses you teach");
+
+        verify(examDAO, never()).create(any());
+    }
+
+    @Test
+    void teacherCannotAutoGenerateForCourseTheyDoNotTeach() {
+        when(courseDAO.isTeacherAssigned(10, 1)).thenReturn(false);
+        ExamService s = new ExamService(examDAO, questionSource, autoExamGenerator, courseDAO, subjectDAO);
+
+        assertThatExceptionOfType(AuthorizationException.class)
+                .isThrownBy(() -> s.generateAuto(teacher(), validAutoRequest()))
+                .withMessageContaining("courses you teach");
+
+        verify(autoExamGenerator, never()).generate(any(), any());
+    }
+
+    @Test
+    void coordinatorCannotApproveExamOutsideTheirSubject() {
+        Exam pending = storedExam(5, 10, ExamStatus.PENDING_APPROVAL);
+        when(examDAO.getById(5)).thenReturn(pending);
+        when(subjectDAO.isCoordinatorForCourse(20, 1)).thenReturn(false);
+        ExamService s = new ExamService(examDAO, questionSource, autoExamGenerator, courseDAO, subjectDAO);
+
+        assertThatExceptionOfType(AuthorizationException.class)
+                .isThrownBy(() -> s.approve(coordinator(), 5))
+                .withMessageContaining("subjects you coordinate");
+
+        verify(examDAO, never()).approve(anyInt(), anyInt());
     }
 
     @Test

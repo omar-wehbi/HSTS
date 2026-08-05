@@ -88,20 +88,19 @@ public class ExamReleaseSession {
     }
 
     public Message requestRelease(int examId, String code,
-                                  LocalDateTime open, int durationMinutes) {
+                                  LocalDateTime open, LocalDateTime close) {
         if (examId <= 0) {
             lastError = "Select an approved exam.";
-            return null;
-        }
-        if (durationMinutes <= 0) {
-            lastError = "Exam duration must be positive.";
             return null;
         }
         if (open == null) {
             lastError = "Open date and time are required.";
             return null;
         }
-        LocalDateTime close = open.plusMinutes(durationMinutes);
+        if (close == null) {
+            lastError = "Close date and time are required.";
+            return null;
+        }
         String validation = validateRelease(code, open, close);
         if (validation != null) {
             lastError = validation;
@@ -114,10 +113,19 @@ public class ExamReleaseSession {
                 new ExamReleaseRequest(examId, code.trim(), open, close));
     }
 
-    /** Computes close = open + durationMinutes, or null if inputs are invalid. */
-    public static LocalDateTime computeClose(LocalDateTime open, int durationMinutes) {
+    /**
+     * Suggests a default close time (open + allotted duration) for the UI.
+     * The availability window may be longer or shorter than the exam duration.
+     */
+    public static LocalDateTime suggestClose(LocalDateTime open, int durationMinutes) {
         if (open == null || durationMinutes <= 0) return null;
         return open.plusMinutes(durationMinutes);
+    }
+
+    /** @deprecated use {@link #suggestClose}; kept for callers during migration. */
+    @Deprecated
+    public static LocalDateTime computeClose(LocalDateTime open, int durationMinutes) {
+        return suggestClose(open, durationMinutes);
     }
 
     public boolean isExamAlreadyReleased(int examId) {

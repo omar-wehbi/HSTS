@@ -44,32 +44,37 @@ class ExamReleaseSessionTest {
     }
 
     @Test
-    void releaseValidatesFourDigitCodeAndComputesCloseFromDuration() {
+    void releaseValidatesFourDigitCodeAndAcceptsIndependentClose() {
         LocalDateTime open = LocalDateTime.of(2026, 7, 28, 9, 0);
+        LocalDateTime close = open.plusHours(3);
 
-        assertThat(session.requestRelease(1, "42", open, 120)).isNull();
+        assertThat(session.requestRelease(1, "42", open, close)).isNull();
         assertThat(session.getLastError()).contains("4 letters or digits");
 
-        assertThat(session.requestRelease(1, "0042", open, 0)).isNull();
-        assertThat(session.getLastError()).contains("duration");
-
-        assertThat(session.requestRelease(1, "0042", null, 120)).isNull();
+        assertThat(session.requestRelease(1, "0042", null, close)).isNull();
         assertThat(session.getLastError()).contains("Open date");
 
-        Message ok = session.requestRelease(1, "0042", open, 120);
+        assertThat(session.requestRelease(1, "0042", open, null)).isNull();
+        assertThat(session.getLastError()).contains("Close date");
+
+        assertThat(session.requestRelease(1, "0042", open, open)).isNull();
+        assertThat(session.getLastError()).contains("after open");
+
+        Message ok = session.requestRelease(1, "0042", open, close);
         assertThat(ok.getCommand()).isEqualTo(Command.RELEASE_EXAM);
         ExamReleaseRequest req = (ExamReleaseRequest) ok.getPayload();
         assertThat(req.getExecutionCode()).isEqualTo("0042");
-        assertThat(req.getCloseTime()).isEqualTo(open.plusMinutes(120));
+        assertThat(req.getCloseTime()).isEqualTo(close);
+        assertThat(req.getCloseTime()).isNotEqualTo(open.plusMinutes(120));
     }
 
     @Test
-    void computeCloseAddsDuration() {
+    void suggestCloseAddsDuration() {
         LocalDateTime open = LocalDateTime.of(2026, 7, 28, 9, 0);
-        assertThat(ExamReleaseSession.computeClose(open, 45))
+        assertThat(ExamReleaseSession.suggestClose(open, 45))
                 .isEqualTo(LocalDateTime.of(2026, 7, 28, 9, 45));
-        assertThat(ExamReleaseSession.computeClose(null, 45)).isNull();
-        assertThat(ExamReleaseSession.computeClose(open, 0)).isNull();
+        assertThat(ExamReleaseSession.suggestClose(null, 45)).isNull();
+        assertThat(ExamReleaseSession.suggestClose(open, 0)).isNull();
     }
 
     @Test
@@ -106,9 +111,10 @@ class ExamReleaseSessionTest {
     @Test
     void releaseSuccessAddsRelease() {
         LocalDateTime open = LocalDateTime.of(2026, 7, 28, 9, 0);
-        session.requestRelease(1, "0042", open, 120);
+        LocalDateTime close = open.plusHours(3);
+        session.requestRelease(1, "0042", open, close);
 
-        ExamRelease release = new ExamRelease(1, 2, "0042", open, open.plusMinutes(120));
+        ExamRelease release = new ExamRelease(1, 2, "0042", open, close);
         release.setId(8);
         session.onServerMessage(new Message(Command.SUCCESS, release));
 
@@ -153,7 +159,8 @@ class ExamReleaseSessionTest {
 
     @Test
     void releaseRejectsNonPositiveExamId() {
-        assertThat(session.requestRelease(0, "0042", LocalDateTime.now(), 60)).isNull();
+        assertThat(session.requestRelease(0, "0042", LocalDateTime.now(),
+                LocalDateTime.now().plusHours(1))).isNull();
         assertThat(session.getLastError()).contains("Select an approved exam");
     }
 

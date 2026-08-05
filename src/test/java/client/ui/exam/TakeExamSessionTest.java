@@ -34,6 +34,26 @@ class TakeExamSessionTest {
     }
 
     @Test
+    void previewRequiresCodeThenEnablesStartWithStoredCode() {
+        assertThat(session.requestPreview("")).isNull();
+        Message preview = session.requestPreview("AB12");
+        assertThat(preview.getCommand()).isEqualTo(Command.PREVIEW_EXAM_BY_CODE);
+        assertThat(preview.getPayload()).isEqualTo("AB12");
+
+        common.network.ExamPreview p = new common.network.ExamPreview(
+                1, 2, "Midterm", "Closed book", 45, 4, "AB12");
+        session.onServerMessage(new Message(Command.SUCCESS, p));
+        assertThat(session.hasPreview()).isTrue();
+        assertThat(session.getPreview().getExamTitle()).isEqualTo("Midterm");
+
+        Message start = session.requestStart(null, "207570227");
+        assertThat(start.getCommand()).isEqualTo(Command.START_EXAM_SESSION);
+        StartExamRequest req = (StartExamRequest) start.getPayload();
+        assertThat(req.getExecutionCode()).isEqualTo("AB12");
+        assertThat(req.getIdNumber()).isEqualTo("207570227");
+    }
+
+    @Test
     void startBuildsRequestAndLoadsForm() {
         Message m = session.requestStart("0042", "987654321");
         assertThat(m.getCommand()).isEqualTo(Command.START_EXAM_SESSION);

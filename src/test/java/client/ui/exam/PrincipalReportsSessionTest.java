@@ -48,6 +48,7 @@ class PrincipalReportsSessionTest {
 
         assertThat(session.getReport().getGroups()).hasSize(1);
         assertThat(PrincipalReportsSession.formatGroup(group)).contains("Alice");
+        assertThat(session.fullReportText()).contains("Dimension: TEACHER").contains("Alice");
     }
 
     @Test

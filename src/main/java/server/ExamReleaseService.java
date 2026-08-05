@@ -13,7 +13,6 @@ import server.db.ExamSnapshotDAO;
 import server.db.QuestionDAO;
 
 import java.io.Serializable;
-import java.time.LocalDateTime;
 
 /** Server-side rules for Scenario 5: releasing an approved exam. */
 public class ExamReleaseService {
@@ -37,10 +36,7 @@ public class ExamReleaseService {
         Exam exam=examDAO.getById(request.getExamId());
         if(exam==null)return error("Exam not found.");
         if(exam.getDurationMinutes()<=0)return error("Exam duration must be positive.");
-        LocalDateTime expectedClose=request.getOpenTime().plusMinutes(exam.getDurationMinutes());
-        if(!request.getCloseTime().equals(expectedClose))
-            return error("Close time must equal open time plus the exam duration ("
-                    + exam.getDurationMinutes() + " minutes).");
+        // Open/close is the availability window; allotted duration is separate (semester PDF §3.5 / §4).
         if(!courseDAO.isTeacherAssigned(caller.getId(), exam.getCourseId()))
             throw new AuthorizationException("You may release only exams in courses you teach.");
         if(!exam.isCurrent())return error("Only the current exam version can be released.");

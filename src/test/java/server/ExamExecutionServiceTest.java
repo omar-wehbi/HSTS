@@ -268,6 +268,36 @@ class ExamExecutionServiceTest {
     // ----- start / save / submit happy paths --------------------------------
 
     @Test
+    void previewByCodeReturnsMetaWithoutCreatingSession() {
+        ExamRelease release = new ExamRelease(20, 7, "AB12", now.minusMinutes(5), now.plusHours(1));
+        release.setId(10);
+        exam.setCourseId(1);
+        exam.setTitle("Midterm");
+        exam.setDurationMinutes(45);
+        exam.setStudentInstructions("Closed book");
+        when(releaseDAO.getOpenByExecutionCode("AB12", now)).thenReturn(release);
+        when(examDAO.getById(20)).thenReturn(exam);
+        when(userDAO.isEnrolled(50, 1)).thenReturn(true);
+        when(snapshotDAO.getByRelease(10)).thenReturn(List.of(
+                new ExamSnapshotQuestion(101, 100, 1, "Q?", "a", "b", "c", "d", 2, null)));
+
+        Message response = service.previewByCode(student, "AB12");
+        assertThat(response.getCommand()).isEqualTo(Message.Command.SUCCESS);
+        assertThat(response.getPayload()).isInstanceOf(common.network.ExamPreview.class);
+        common.network.ExamPreview preview = (common.network.ExamPreview) response.getPayload();
+        assertThat(preview.getExamTitle()).isEqualTo("Midterm");
+        assertThat(preview.getQuestionCount()).isEqualTo(1);
+        verify(sessionDAO, never()).create(any());
+    }
+
+    @Test
+    void previewRejectsUnknownCode() {
+        when(releaseDAO.getOpenByExecutionCode("ZZ99", now)).thenReturn(null);
+        assertThat(service.previewByCode(student, "ZZ99").getCommand())
+                .isEqualTo(Message.Command.ERROR);
+    }
+
+    @Test
     void startRejectsBadCodeAndMismatchedId() {
         assertThat(service.start(student, "bad").getCommand()).isEqualTo(Message.Command.ERROR);
         assertThat(service.start(student, new StartExamRequest("12", "123456789")).getCommand())

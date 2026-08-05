@@ -8,8 +8,10 @@ import common.network.AutoExamRequest;
 import common.network.ExamRejectionRequest;
 import common.network.Message;
 import common.network.Message.Command;
+import server.db.CourseDAO;
 import server.db.ExamDAO;
 import server.db.QuestionSource;
+import server.db.SubjectDAO;
 
 import java.io.Serializable;
 
@@ -24,22 +26,40 @@ import java.io.Serializable;
  *     <li>Scenario 4 — storing a written rejection reason.</li>
  * </ul>
  *
- * <p>Teachers create and edit exams. Coordinators approve or reject
- * exams. The principal has read-only access.</p>
+ * <p>Teachers create and edit exams only for courses they teach.
+ * Coordinators approve or reject exams. The principal has read-only access.</p>
  */
 public class ExamService {
 
     private final ExamDAO examDAO;
     private final QuestionSource questionSource;
     private final AutoExamGenerator autoExamGenerator;
+    private final CourseDAO courseDAO;
+    private final SubjectDAO subjectDAO;
 
     public ExamService(ExamDAO examDAO,
                        QuestionSource questionSource,
                        AutoExamGenerator autoExamGenerator) {
+        this(examDAO, questionSource, autoExamGenerator, new CourseDAO(), new SubjectDAO());
+    }
 
+    public ExamService(ExamDAO examDAO,
+                       QuestionSource questionSource,
+                       AutoExamGenerator autoExamGenerator,
+                       CourseDAO courseDAO) {
+        this(examDAO, questionSource, autoExamGenerator, courseDAO, new SubjectDAO());
+    }
+
+    public ExamService(ExamDAO examDAO,
+                       QuestionSource questionSource,
+                       AutoExamGenerator autoExamGenerator,
+                       CourseDAO courseDAO,
+                       SubjectDAO subjectDAO) {
         this.examDAO = examDAO;
         this.questionSource = questionSource;
         this.autoExamGenerator = autoExamGenerator;
+        this.courseDAO = courseDAO;
+        this.subjectDAO = subjectDAO;
     }
 
     // ===== reads ==========================================================
@@ -144,6 +164,8 @@ public class ExamService {
             return error(invalid);
         }
 
+        requireTeachesCourse(caller, exam.getCourseId());
+
         Exam saved = examDAO.create(exam);
 
         return saved != null
@@ -203,6 +225,8 @@ public class ExamService {
             return error(invalid);
         }
 
+        requireTeachesCourse(caller, requested.getCourseId());
+
         Exam updated = examDAO.createNewVersion(
                 current.getId(),
                 requested
@@ -237,6 +261,8 @@ public class ExamService {
         if (invalid != null) {
             return error(invalid);
         }
+
+        requireTeachesCourse(caller, request.getCourseId());
 
         try {
             Exam generated = autoExamGenerator.generate(
@@ -378,6 +404,8 @@ public class ExamService {
             );
         }
 
+        requireCoordinatesCourse(caller, exam.getCourseId());
+
         Exam approved = examDAO.approve(
                 examId,
                 caller.getId()
@@ -423,6 +451,8 @@ public class ExamService {
             );
         }
 
+        requireCoordinatesCourse(caller, exam.getCourseId());
+
         Exam rejected = examDAO.reject(
                 request.getExamId(),
                 caller.getId(),
@@ -435,6 +465,20 @@ public class ExamService {
     }
 
     // ===== helpers ========================================================
+
+    private void requireTeachesCourse(User teacher, int courseId) {
+        if (!courseDAO.isTeacherAssigned(teacher.getId(), courseId)) {
+            throw new AuthorizationException(
+                    "You may create or edit exams only for courses you teach.");
+        }
+    }
+
+    private void requireCoordinatesCourse(User coordinator, int courseId) {
+        if (!subjectDAO.isCoordinatorForCourse(coordinator.getId(), courseId)) {
+            throw new AuthorizationException(
+                    "You may approve or reject only exams in subjects you coordinate.");
+        }
+    }
 
     /**
      * Sets fields controlled by the server for a new exam.
@@ -494,6 +538,7 @@ public class ExamService {
         exam.setRejectionReason(source.getRejectionReason());
         exam.setCoordinatorId(source.getCoordinatorId());
         exam.setCourseName(source.getCourseName());
+        exam.setSubjectCode(source.getSubjectCode());
         exam.setQuestions(new java.util.ArrayList<>(source.getQuestions()));
         return exam;
     }

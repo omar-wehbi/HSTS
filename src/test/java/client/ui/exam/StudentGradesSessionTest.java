@@ -54,6 +54,8 @@ class StudentGradesSessionTest {
                 List.of(new CheckedAnswer(1, "Q?", "A", "B", "C", "D", 2, 2, 10, true)));
         session.onServerMessage(new Message(Command.SUCCESS, checked));
         assertThat(session.getCheckedExam()).isSameAs(checked);
+        assertThat(session.exportCheckedExamText()).contains("Quiz").contains("88");
+        assertThat(session.exportCheckedExamPdf()).isNotNull().hasSizeGreaterThan(50);
     }
 
     @Test
